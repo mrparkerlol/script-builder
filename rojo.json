@@ -1,0 +1,10 @@
+{
+  "name": "sandboxing",
+  "servePort": 8000,
+  "partitions": {
+    "SB": {
+      "path": "SB",
+      "target": "Workspace.SB"
+    }
+  }
+}
