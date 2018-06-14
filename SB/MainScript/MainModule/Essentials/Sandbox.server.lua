@@ -1,3 +1,26 @@
+--[[
+	Written by Jacob (@monofur, https://github.com/mrteenageparker)
+
+	Originally modified from my sandbox
+	for my discord bot:
+	https://github.com/mrteenageparker/sandboxxy
+
+	You are allowed to modify the contents and
+	redistribute it, provided you
+	keep this above notice and
+	republish the original source
+	in a way that it is publicly
+	available so other people can 
+	potentially benefit from your 
+	improvements/changes!
+
+	Feel free to read the source of this
+	script (including the latest changes)
+	on my Github (or create helpful pull 
+	requests, if that's your thing!):
+	https://github.com/mrteenageparker/sb-in-a-require
+]]
+
 -- Globals
 local dad_b0x = {} do
 	-- Environement
@@ -20,33 +43,34 @@ local dad_b0x = {} do
 	-- Internalized functions
 	dad_b0x.internalFunctions = {
         ['wrap'] = (function(obj)
-            if dad_b0x.CachedInstances[obj] then
-                return dad_b0x.CachedInstances[obj];
-            else
-                local proxy = newproxy(true);
-                local proxyMeta = getmetatable(proxy);
-                setmetatable(proxyMeta, {
-                    __index = (function(self, index)
-						if dad_b0x.Fake.Methods[index] and dad_b0x.Fake.ProtectedInstances[obj.ClassName]
-						or dad_b0x.Fake.ProtectedInstances[obj] then
-                            return (function(...)
-                                return dad_b0x.Fake.Methods[index](...);
-                            end);
-						else
-                            if typeof(obj[index]) == "function" then
-                                return (function(...)
-                                    return obj[index](obj, ...);
-                                end);
-                            else
-                                return dad_b0x.internalFunctions.wrap(obj[index]);
-                            end;
-                        end;
-                    end);
-                });
-    
-                return proxyMeta;
-            end;
-        end);
+					if dad_b0x.CachedInstances[obj] then
+							return dad_b0x.CachedInstances[obj];
+					else
+						local proxy = newproxy(true);
+						getmetatable(proxy).__index = (function(self, index)
+							local lIndex = string.lower(index);
+
+							if dad_b0x.Fake.Methods[lIndex] and dad_b0x.Fake.ProtectedInstances[obj.ClassName]
+							or dad_b0x.Fake.ProtectedInstances[obj] then
+								return (function(...)
+									return dad_b0x.Fake.Methods[lIndex](...);
+								end);
+							else
+								if typeof(obj[index]) == "function" then
+									return (function(...)
+										return obj[index](obj, ...);
+									end);
+								else
+									return dad_b0x.internalFunctions.wrap(obj[index]);
+								end;
+							end;
+						end);
+						
+						getmetatable(proxy).__metatable = getmetatable(game);
+
+						return proxy;
+					end;
+			end);
 	};
 
 	-- Environments
@@ -61,10 +85,10 @@ local dad_b0x = {} do
 					return dad_b0x.Fake.Functions[index];
 				elseif dad_b0x.Fake.Instances[index] then
 					return dad_b0x.Fake.Instances[index];
-                else
-                    if typeof(dad_b0x.mainEnv[index]) == "Instance" then
-                        return dad_b0x.internalFunctions.wrap(dad_b0x.mainEnv[index]);
-                    end;
+				else
+					if typeof(dad_b0x.mainEnv[index]) == "Instance" then
+							return dad_b0x.internalFunctions.wrap(dad_b0x.mainEnv[index]);
+					end;
 
 					return dad_b0x.mainEnv[index];
 				end;
@@ -79,10 +103,10 @@ local dad_b0x = {} do
 		['Instances'] = {};
 
 		['Functions'] = {
-            ['require'] = (function(...)
-                -- TODO: allow the user to whitelist specific modules
-                -- or to straight up disable require()
-                return require(...);
+			['require'] = (function(...)
+					-- TODO: allow the user to whitelist specific modules
+					-- or to straight up disable require()
+					return require(...);
 				--return error('Attempt to call require() (action has been blocked)', 2)
 			end);
 			['collectgarbage'] = (function(...)
@@ -111,8 +135,45 @@ local dad_b0x = {} do
 				end
 			end);
 
-            ['print'] = (function(...)
-                -- TODO: hook the print object
+			['getfenv'] = (function(flevel)
+				local s,m = pcall(getfenv, flevel) do
+					if not s then
+						return error(m, 2);
+					else
+						if m == dad_b0x.mainEnv then
+							return getfenv(0);
+						else
+							return m;
+						end
+					end
+				end
+			end);
+
+			['setfenv'] = (function(f, env)
+				local s,m = pcall(getfenv, f);
+				if m then
+					if m == dad_b0x.mainEnv then
+						if type(f) == "function" then
+							return error ("'setfenv' cannot change the environment of this function", 2);
+						end
+
+						return getfenv(0);
+					end
+				else
+					return error(m, 2)
+				end
+
+				local s,m = pcall(setfenv, f, env);
+
+				if not s then
+					return error(m, 2);
+				end
+
+				return m;
+			end);
+
+			['print'] = (function(...)
+				-- TODO: hook the print object
 				return print(...);
 			end);
 		};
@@ -132,7 +193,7 @@ local dad_b0x = {} do
 		};
 
 		['Methods'] = {
-			['Destroy'] = (function(...)
+			['destroy'] = (function(...)
 				return error("Object is locked.", 3);
 			end);
 		};
@@ -142,8 +203,8 @@ local dad_b0x = {} do
 			-- should be all the SB components.
 			[workspace.Baseplate] = true;
 		};
-	}
-end
+	};
+end;
 
 -- Set the rest of the environment
 setfenv(0, dad_b0x.Environments.level_1);
@@ -158,4 +219,6 @@ local function exec(src)
 	end;
 end;
 
-exec([[workspace.Baseplate:Destroy()]]);
+exec([[
+	workspace.Baseplate:Destroy()
+]]);
