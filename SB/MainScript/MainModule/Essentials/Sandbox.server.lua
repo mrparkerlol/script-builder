@@ -42,35 +42,37 @@ local dad_b0x = {} do
 
 	-- Internalized functions
 	dad_b0x.internalFunctions = {
-        ['wrap'] = (function(obj)
-					if dad_b0x.CachedInstances[obj] then
-							return dad_b0x.CachedInstances[obj];
-					else
-						local proxy = newproxy(true);
-						getmetatable(proxy).__index = (function(self, index)
-							local lIndex = string.lower(index);
+		['wrap'] = (function(obj)
+			if dad_b0x.CachedInstances[obj] then
+					return dad_b0x.CachedInstances[obj];
+			else
+				local proxy = newproxy(true);
+				getmetatable(proxy).__index = (function(self, index)
+					local lIndex = string.lower(index);
 
-							if dad_b0x.Fake.Methods[lIndex] and dad_b0x.Fake.ProtectedInstances[obj.ClassName]
-							or dad_b0x.Fake.ProtectedInstances[obj] then
-								return (function(...)
-									return dad_b0x.Fake.Methods[lIndex](...);
-								end);
-							else
-								if typeof(obj[index]) == "function" then
-									return (function(...)
-										return obj[index](obj, ...);
-									end);
-								else
-									return dad_b0x.internalFunctions.wrap(obj[index]);
-								end;
-							end;
+					if dad_b0x.Fake.Methods[lIndex] and dad_b0x.Fake.ProtectedInstances[obj.ClassName]
+					or dad_b0x.Fake.ProtectedInstances[obj] then
+						return (function(...)
+							return dad_b0x.Fake.Methods[lIndex](...);
 						end);
-						
-						getmetatable(proxy).__metatable = getmetatable(game);
-
-						return proxy;
+					else
+						if typeof(obj[index]) == "function" then
+							return (function(...)
+								return obj[index](obj, ...);
+							end);
+						else
+							return dad_b0x.internalFunctions.wrap(obj[index]);
+						end;
 					end;
-			end);
+				end);
+				
+				getmetatable(proxy).__metatable = getmetatable(game);
+
+				dad_b0x.CachedInstances[obj] = proxy;
+
+				return proxy;
+			end;
+	end);
 	};
 
 	-- Environments
