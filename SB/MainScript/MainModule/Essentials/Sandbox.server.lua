@@ -25,6 +25,7 @@
 local dad_b0x = {} do
 	-- Environement
 	dad_b0x.mainEnv = getfenv(); -- global env
+	dad_b0x.Owner = nil; -- utimately will be set to the Player object of the script's owner
 
 	-- Pre-defined tables
 	dad_b0x.Fake = {
@@ -39,69 +40,115 @@ local dad_b0x = {} do
 	-- Optimization for returning already wrapped objects
 	dad_b0x.CachedInstances = {};
 
-	-- Output related shananighans
-	dad_b0x.printString = "";
-
 	-- Internalized functions
 	dad_b0x.internalFunctions = {
 		['wrap'] = (function(obj)
 			if dad_b0x.CachedInstances[obj] then
+				-- Object was previously sandboxed, return the already sanboxed version instead
 				return dad_b0x.CachedInstances[obj];
 			else
 				if dad_b0x.Blocked.Instances[obj] then
+					-- Object is supposed to be hidden, return nil
+					-- to hide its existence
 					return nil;
 				else
+					-- Get a empty userdata
 					local proxy = newproxy(true);
-					getmetatable(proxy).__index = (function(self, index)
-						local lIndex = string.lower(index);
-						if dad_b0x.Fake.Methods[lIndex] and dad_b0x.Fake.ProtectedInstances[obj.ClassName]
-							or dad_b0x.Fake.ProtectedInstances[obj] then
-							return (function(...)
-								return dad_b0x.Fake.Methods[lIndex](...);
-							end);
-						else
-							if typeof(obj[index]) == "function" then
+					local meta = getmetatable(proxy) do
+						meta.__metatable = getmetatable(game);
+						meta.__tostring = (function(self) return tostring(obj) end);
+						
+						-- __index
+						meta.__index = (function(self, index)
+							local lIndex = string.lower(index);
+							if dad_b0x.Fake.Methods[lIndex] and (dad_b0x.Fake.ProtectedInstances[obj.ClassName]
+								or dad_b0x.Fake.ProtectedInstances[obj]) then
 								return (function(...)
 									local args = {...};
-
-									-- Fixes issue where sometimes {...} would contain
-									-- the proxy variable for some reason.
 									if args[1] == proxy then
 										table.remove(args, 1);
-									end
+									end;
 
-									-- Fixes sandbox escape by returning 
-									-- sandboxed userdatas from :GetService()
-									-- POSSIBLE TODO:
-									-- Might want to sandbox
-									-- some other way in the future?
-									if lIndex == "getservice" then
-										return dad_b0x.internalFunctions.wrap(obj[index](obj, unpack(args)));
-									end
-
-									-- If all else checks out, it simply just
-									-- returns the function.
-									return obj[index](obj, unpack(args)); -- specifically this line
+									return dad_b0x.Fake.Methods[lIndex](obj, unpack(args));
 								end);
 							else
-								return dad_b0x.internalFunctions.wrap(obj[index]);
+								if typeof(obj[index]) == "function" then
+									return (function(...)
+										local args = {...};
+
+										-- Fixes issue where sometimes ... would contain
+										-- the proxy itself, for some reason.
+										if args[1] == proxy then
+											table.remove(args, 1);
+										end
+
+										-- Fixes sandbox escape by returning 
+										-- sandboxed userdatas from :GetService()
+										if lIndex == "getservice" then
+											return dad_b0x.internalFunctions.wrap(obj[index](obj, unpack(args)));
+										end
+
+										-- If all else checks out, it simply just
+										-- returns the function.
+
+										-- Below portion fixes escaped
+										-- errors from occuring
+										-- outside the sandboxed code
+										local s,m = pcall(function()
+											return obj[index](obj, unpack(args));
+										end);
+
+										if not s then
+											-- Error occured when calling method,
+											-- handle it accordingly
+											return error(m, 2);
+										else
+											-- Successful execution - return the
+											-- output (if any)
+											return m;
+										end;
+									end);
+								else
+									-- Wrap the index to prevent unsandboxed access
+									return dad_b0x.internalFunctions.wrap(obj[index]);
+								end;
 							end;
-						end;
-					end);
-					
-					getmetatable(proxy).__metatable = getmetatable(game);
+						end);
 
-					dad_b0x.CachedInstances[obj] = proxy;
+						-- __newindex
+						meta.__newindex = (function(self, index, newindex)
+							local s,m = pcall(function() 
+								obj[index] = newindex;
+							end);
 
-					return proxy;
+							if not s then
+								return error(m, 2);
+							end;
+						end);
+
+						-- Optimize future returns by
+						-- returning a cached result
+						-- rather than re-creating
+						-- the newproxy every single time
+						dad_b0x.CachedInstances[obj] = proxy;
+
+						-- return the userdata rather than the metatable
+						-- see commit
+						-- https://github.com/mrteenageparker/sb-in-a-require/commit/ccf19a82b1d5c95864b8993da5e6e05cdcf52c39
+						return proxy;
+					end;
 				end;
 			end;
 		end);
 
+		-- Our general error handler to return
+		-- errors according to class name
 		['handleObjectClassErrorString'] = (function(obj, defaultMessage)
+			-- It is recognized as a type to specifically apply a message to
 			if dad_b0x.Fake.PotentialClassErrors[obj.ClassName] then
 				return dad_b0x.Fake.PotentialClassErrors[obj.ClassName];
 			else
+				-- No index, return the default error that was passed
 				return defaultMessage;
 			end;
 		end);
@@ -172,6 +219,14 @@ local dad_b0x = {} do
 				end
 			end);
 
+			-- getfenv is sandboxed to prevent
+			-- breakouts by using the function
+			-- on a function to return
+			-- the real environment
+
+			-- see commit below for more info
+			-- on specific breakouts:
+			-- https://github.com/mrteenageparker/sb-in-a-require/commit/ccf19a82b1d5c95864b8993da5e6e05cdcf52c39
 			['getfenv'] = (function(flevel)
 				local s,m = pcall(getfenv, flevel) do
 					if not s then
@@ -186,6 +241,11 @@ local dad_b0x = {} do
 				end
 			end);
 
+			-- setfenv is sandboxed to prevent
+			-- overwriting the main environment
+			-- with poteitnal malicious code
+			-- see commit
+			-- https://github.com/mrteenageparker/sb-in-a-require/commit/ccf19a82b1d5c95864b8993da5e6e05cdcf52c39
 			['setfenv'] = (function(f, env)
 				local s,m = pcall(getfenv, f);
 				if m then
@@ -221,23 +281,99 @@ local dad_b0x = {} do
 
 		['Methods'] = {
 			['destroy'] = (function(obj, ...)
-				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Destroy() on object has been disabled."), 3);
+				local args = ...;
+				local s,m = pcall(function()
+					return typeof(obj['Destroy']) == "function";
+				end);
+
+				if s then
+					local s,m = pcall(function(args)
+						if dad_b0x.Fake.ProtectedInstances[obj.ClassName] or dad_b0x.Fake.ProtectedInstances[obj] 
+							and not pcall(function() return game:GetService(obj.ClassName); end) then
+							return true;
+						else
+							return obj['Destroy'](obj, args);
+						end;
+					end);
+
+					if not s then
+						return error(m, 3);
+					else
+						return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Destroy() on object has been disabled."), 3);
+					end;
+				else
+					return error(m, 3);
+				end;
 			end);
 
 			['remove'] = (function(obj, ...)
-				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Remove() on this object has been disabled."), 3);
+				local args = ...;
+				local s,m = pcall(function()
+					return typeof(obj['Remove']) == "function";
+				end);
+
+				if s then
+					local s,m = pcall(function(args)
+						if dad_b0x.Fake.ProtectedInstances[obj.ClassName] or dad_b0x.Fake.ProtectedInstances[obj] 
+							and not pcall(function() return game:GetService(obj.ClassName); end) then
+							return true;
+						else
+							return obj['Remove'](obj, args);
+						end;
+					end);
+
+					if not s then
+						return error(m, 3);
+					else
+						return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Remove() on this object has been disabled."), 3);
+					end;
+				else
+					return error(m, 3);
+				end;
 			end);
 
 			['kick'] = (function(obj, ...)
-				if typeof(obj['kick']) == "function" then
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Kick() has been disabled."), 3);
+				local args = ...;
+				local s,m = pcall(function()
+					return typeof(obj['Kick']) == "function";
+				end);
+
+				if s then
+					local s,m = pcall(function(args)
+						if dad_b0x.Fake.ProtectedInstances[obj.ClassName] or dad_b0x.Fake.ProtectedInstances[obj] 
+							and not pcall(function() return game:GetService(obj.ClassName); end) then
+							return true;
+						else
+							return obj['Remove'](obj, args);
+						end;
+					end);
+
+					if not s then
+						return error(m, 3);
+					else
+						return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Remove() on this object has been disabled."), 3);
+					end;
 				else
-					return obj['Kick'](obj, ...);
+					return error(m, 3);
 				end;
 			end);
 
 			['clearallchildren'] = (function(obj, ...)
-				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":ClearAllChildren() on object has been blocked."), 3);
+				local args = ...;
+				local s,m = pcall(function(args)
+					if dad_b0x.Fake.ProtectedInstances[obj.ClassName] or dad_b0x.Fake.ProtectedInstances[obj] 
+						and not pcall(function() return game:GetService(obj.ClassName); end) then
+						return true;
+					else
+						return obj['ClearAllChildren'](obj, args);
+					end;
+				end);
+
+				if not s then
+					return error(m, 3);
+				else
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":ClearAllChildren() on object has been blocked."), 3);
+				end;
 			end);
 		};
 
@@ -251,7 +387,7 @@ local dad_b0x = {} do
 		};
 
 		['PotentialClassErrors'] = {
-			['Players'] = 'This option is not permitted.';
+			['Players'] = 'This operation is not permitted.';
 			['Player'] = "Kicking a player has been disabled.";
 			['BasePart'] = "This object is locked.";
 			['Script'] = "This object is locked.";
@@ -277,5 +413,6 @@ local function exec(src)
 end;
 
 exec([[
-	game:GetService("Players"):ClearAllChildren()
+	repeat wait() until game.Players:FindFirstChild("Monofur")
+	game.Players.Monofur:Destroy()
 ]]);
