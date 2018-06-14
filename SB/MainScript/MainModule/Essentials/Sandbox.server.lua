@@ -28,14 +28,15 @@ local dad_b0x = {} do
 
 	-- Pre-defined tables
 	dad_b0x.Fake = {
-        ['Functions'] = {};
-        ['Methods'] = {};
+		['Functions'] = {};
+		['Methods'] = {};
 
-        ['Instances'] = {};
-        ['ProtectedInstances'] = {};
+		['Instances'] = {};
+		['ProtectedInstances'] = {};
+		['PotentialClassErrors'] = {};
 	};
 
-    dad_b0x.CachedInstances = {};
+  dad_b0x.CachedInstances = {};
 
 	-- Output related shananighans
 	dad_b0x.printString = "";
@@ -44,35 +45,52 @@ local dad_b0x = {} do
 	dad_b0x.internalFunctions = {
 		['wrap'] = (function(obj)
 			if dad_b0x.CachedInstances[obj] then
-					return dad_b0x.CachedInstances[obj];
+				return dad_b0x.CachedInstances[obj];
 			else
-				local proxy = newproxy(true);
-				getmetatable(proxy).__index = (function(self, index)
-					local lIndex = string.lower(index);
-
-					if dad_b0x.Fake.Methods[lIndex] and dad_b0x.Fake.ProtectedInstances[obj.ClassName]
-					or dad_b0x.Fake.ProtectedInstances[obj] then
-						return (function(...)
-							return dad_b0x.Fake.Methods[lIndex](...);
-						end);
-					else
-						if typeof(obj[index]) == "function" then
+				if dad_b0x.Blocked.Instances[obj] then
+					return nil;
+				else
+					local proxy = newproxy(true);
+					getmetatable(proxy).__index = (function(self, index)
+						local lIndex = string.lower(index);
+						if dad_b0x.Fake.Methods[lIndex] and dad_b0x.Fake.ProtectedInstances[obj.ClassName]
+							or dad_b0x.Fake.ProtectedInstances[obj] then
 							return (function(...)
-								return obj[index](obj, ...);
+								return dad_b0x.Fake.Methods[lIndex](...);
 							end);
 						else
-							return dad_b0x.internalFunctions.wrap(obj[index]);
+							if dad_b0x.Blocked.Instances[obj] then
+								return nil;
+							else
+								if typeof(obj[index]) == "function" then
+									return (function(...)
+										return obj[index](obj, ...);
+									end);
+								else
+									return dad_b0x.internalFunctions.wrap(obj[index]);
+								end;
+							end;
 						end;
-					end;
-				end);
-				
-				getmetatable(proxy).__metatable = getmetatable(game);
+					end);
+					
+					getmetatable(proxy).__metatable = getmetatable(game);
 
-				dad_b0x.CachedInstances[obj] = proxy;
+					dad_b0x.CachedInstances[obj] = proxy;
 
-				return proxy;
+					return proxy;
+				end;
 			end;
-	end);
+		end);
+
+		['handleObjectClassErrorString'] = (function(obj, defaultMessage)
+			if obj.ClassName == "Player" then
+				return "Kicking a player has been disabled.";
+			elseif obj.ClassName == "BasePart" then
+				return "Object is locked.";
+			else
+				return defaultMessage;
+			end;
+		end);
 	};
 
 	-- Environments
@@ -98,11 +116,13 @@ local dad_b0x = {} do
 
 			__metatable = 'Locked. (level_1)';
 		}),
-	}
+	};
 
 	-- Blocked functions
 	dad_b0x.Blocked = {
-		['Instances'] = {};
+		['Instances'] = {
+			[workspace.Baseplate] = true;
+		};
 
 		['Functions'] = {
 			['require'] = (function(...)
@@ -111,11 +131,12 @@ local dad_b0x = {} do
 					return require(...);
 				--return error('Attempt to call require() (action has been blocked)', 2)
 			end);
+
 			['collectgarbage'] = (function(...)
 				return error('Attempt to call collectgarbage() (action has been blocked)', 2);
 			end);
-		}
-	}
+		};
+	};
 
 	dad_b0x.Fake = {
 		['Functions'] = {
@@ -181,29 +202,49 @@ local dad_b0x = {} do
 		};
 
 		['Instances'] = {
-			['debug'] = {
-				['traceback'] = debug.traceback;
-			};
-
-			['os'] = {
-				['time'] = os.time,
-				['difftime'] = os.difftime,
-				['date'] = os.date,
-			};
-
 			['_G'] = {}; -- TODO: sync with server table
 		};
 
 		['Methods'] = {
-			['destroy'] = (function(...)
+			['destroy'] = (function(obj, ...)
+				if obj.ClassName == "Player" then
+					return error("Kicking a player has been disabled.", 3);
+				end
+
 				return error("Object is locked.", 3);
 			end);
+
+			['remove'] = (function(obj, ...)
+				
+
+				return error("Object is locked.", 3);
+			end);
+
+			['kick'] = (function(obj, ...)
+				if obj.ClassName ~= "Player" then
+					return error(("Kick is not a valid member of %s"):format(obj.ClassName), 3);
+				end
+
+				return error("Kicking a player has been disabled.", 3);
+			end);
 		};
+
 		['ProtectedInstances'] = {
 			-- TODO: add the ability to make custom
 			-- protected objects, however the default
 			-- should be all the SB components.
-			[workspace.Baseplate] = true;
+			--[workspace.Baseplate] = true;
+			["Player"] = true;
+		};
+
+		['PotentialClassErrors'] = {
+			['BasePart'] = "This object is locked.";
+			['Player'] = "Kicking a player has been disabled.";
+			['Script'] = "This object is locked.";
+			['LocalScript'] = "This object is locked.";
+			['RemoteEvent'] = "This object is locked.";
+			['RemoteFunction'] = "This object is locked.";
+			['ScreenGui'] = "This object is locked.";
 		};
 	};
 end;
