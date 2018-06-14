@@ -36,7 +36,8 @@ local dad_b0x = {} do
 		['PotentialClassErrors'] = {};
 	};
 
-  dad_b0x.CachedInstances = {};
+	-- Optimization for returning already wrapped objects
+	dad_b0x.CachedInstances = {};
 
 	-- Output related shananighans
 	dad_b0x.printString = "";
@@ -59,16 +60,31 @@ local dad_b0x = {} do
 								return dad_b0x.Fake.Methods[lIndex](...);
 							end);
 						else
-							if dad_b0x.Blocked.Instances[obj] then
-								return nil;
+							if typeof(obj[index]) == "function" then
+								return (function(...)
+									local args = {...};
+
+									-- Fixes issue where sometimes {...} would contain
+									-- the proxy variable for some reason.
+									if args[1] == proxy then
+										table.remove(args, 1);
+									end
+
+									-- Fixes sandbox escape by returning 
+									-- sandboxed userdatas from :GetService()
+									-- POSSIBLE TODO:
+									-- Might want to sandbox
+									-- some other way in the future?
+									if lIndex == "getservice" then
+										return dad_b0x.internalFunctions.wrap(obj[index](obj, unpack(args)));
+									end
+
+									-- If all else checks out, it simply just
+									-- returns the function.
+									return obj[index](obj, unpack(args)); -- specifically this line
+								end);
 							else
-								if typeof(obj[index]) == "function" then
-									return (function(...)
-										return obj[index](obj, ...);
-									end);
-								else
-									return dad_b0x.internalFunctions.wrap(obj[index]);
-								end;
+								return dad_b0x.internalFunctions.wrap(obj[index]);
 							end;
 						end;
 					end);
@@ -83,10 +99,8 @@ local dad_b0x = {} do
 		end);
 
 		['handleObjectClassErrorString'] = (function(obj, defaultMessage)
-			if obj.ClassName == "Player" then
-				return "Kicking a player has been disabled.";
-			elseif obj.ClassName == "BasePart" then
-				return "Object is locked.";
+			if dad_b0x.Fake.PotentialClassErrors[obj.ClassName] then
+				return dad_b0x.Fake.PotentialClassErrors[obj.ClassName];
 			else
 				return defaultMessage;
 			end;
@@ -207,25 +221,23 @@ local dad_b0x = {} do
 
 		['Methods'] = {
 			['destroy'] = (function(obj, ...)
-				if obj.ClassName == "Player" then
-					return error("Kicking a player has been disabled.", 3);
-				end
-
-				return error("Object is locked.", 3);
+				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Destroy() on object has been disabled."), 3);
 			end);
 
 			['remove'] = (function(obj, ...)
-				
-
-				return error("Object is locked.", 3);
+				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Remove() on this object has been disabled."), 3);
 			end);
 
 			['kick'] = (function(obj, ...)
-				if obj.ClassName ~= "Player" then
-					return error(("Kick is not a valid member of %s"):format(obj.ClassName), 3);
-				end
+				if typeof(obj['kick']) == "function" then
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Kick() has been disabled."), 3);
+				else
+					return obj['Kick'](obj, ...);
+				end;
+			end);
 
-				return error("Kicking a player has been disabled.", 3);
+			['clearallchildren'] = (function(obj, ...)
+				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":ClearAllChildren() on object has been blocked."), 3);
 			end);
 		};
 
@@ -235,11 +247,13 @@ local dad_b0x = {} do
 			-- should be all the SB components.
 			--[workspace.Baseplate] = true;
 			["Player"] = true;
+			[game:GetService("Players")] = true;
 		};
 
 		['PotentialClassErrors'] = {
-			['BasePart'] = "This object is locked.";
+			['Players'] = 'This option is not permitted.';
 			['Player'] = "Kicking a player has been disabled.";
+			['BasePart'] = "This object is locked.";
 			['Script'] = "This object is locked.";
 			['LocalScript'] = "This object is locked.";
 			['RemoteEvent'] = "This object is locked.";
@@ -263,5 +277,5 @@ local function exec(src)
 end;
 
 exec([[
-	workspace.Baseplate:Destroy()
+	game:GetService("Players"):ClearAllChildren()
 ]]);
