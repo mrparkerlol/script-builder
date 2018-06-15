@@ -84,9 +84,9 @@ local dad_b0x = {} do
 
 										-- Fixes sandbox escape by returning 
 										-- sandboxed userdatas from :GetService()
-										if lIndex == "getservice" then
+										--[[if lIndex == "getservice" then
 											return dad_b0x.internalFunctions.wrap(obj[index](obj, unpack(args)));
-										end
+										end]]
 
 										-- If all else checks out, it simply just
 										-- returns the function.
@@ -104,8 +104,29 @@ local dad_b0x = {} do
 											return error(m, 2);
 										else
 											-- Successful execution - return the
-											-- output (if any)
-											return m;
+											-- output (if any), or sandbox
+											-- the return data
+											if typeof(m) == "table" then
+												for i=0, #m do
+													if dad_b0x.Fake.ProtectedInstances[m[i]] then
+														m[i] = dad_b0x.internalFunctions.wrap(m[i]);
+													elseif dad_b0x.Blocked.Instances[m[i]] then
+														table.remove(m, i);
+													end;
+												end;
+
+												return m;
+											elseif typeof(m) == "Instance" and
+												(dad_b0x.Fake.ProtectedInstances[m] or dad_b0x.Fake.ProtectedInstances[m.ClassName]) or
+												(dad_b0x.Blocked.Instances[m] or dad_b0x.Blocked.Instances[m.ClassName]) then
+												if dad_b0x.Fake.ProtectedInstances[m] or dad_b0x.Fake.ProtectedInstances[m.ClassName] then
+													return dad_b0x.internalFunctions.wrap(m);
+												elseif dad_b0x.Blocked.Instances[m] or dad_b0x.Blocked.Instances[m.ClassName] then
+													return nil;
+												end;
+											else
+												return m;
+											end;
 										end;
 									end);
 								else
@@ -182,7 +203,7 @@ local dad_b0x = {} do
 	-- Blocked functions
 	dad_b0x.Blocked = {
 		['Instances'] = {
-			[workspace.Baseplate] = true;
+			--[workspace.Baseplate] = true;
 		};
 
 		['Functions'] = {
@@ -288,9 +309,10 @@ local dad_b0x = {} do
 
 				if s then
 					local s,m = pcall(function(args)
+						local success, message = pcall(function() return game:GetService(obj.ClassName); end);
 						if dad_b0x.Fake.ProtectedInstances[obj.ClassName] or dad_b0x.Fake.ProtectedInstances[obj] 
-							and not pcall(function() return game:GetService(obj.ClassName); end) then
-							return true;
+							and (message == nil or success == false) then
+							return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Destroy() on object has been disabled."), 0);
 						else
 							return obj['Destroy'](obj, args);
 						end;
@@ -298,8 +320,6 @@ local dad_b0x = {} do
 
 					if not s then
 						return error(m, 3);
-					else
-						return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Destroy() on object has been disabled."), 3);
 					end;
 				else
 					return error(m, 3);
@@ -314,9 +334,10 @@ local dad_b0x = {} do
 
 				if s then
 					local s,m = pcall(function(args)
+						local success, message = pcall(function() return game:GetService(obj.ClassName); end);
 						if dad_b0x.Fake.ProtectedInstances[obj.ClassName] or dad_b0x.Fake.ProtectedInstances[obj] 
-							and not pcall(function() return game:GetService(obj.ClassName); end) then
-							return true;
+							and (message == nil or success == false) then
+							return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Remove() on this object has been disabled."), 0);
 						else
 							return obj['Remove'](obj, args);
 						end;
@@ -324,8 +345,6 @@ local dad_b0x = {} do
 
 					if not s then
 						return error(m, 3);
-					else
-						return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Remove() on this object has been disabled."), 3);
 					end;
 				else
 					return error(m, 3);
@@ -340,9 +359,10 @@ local dad_b0x = {} do
 
 				if s then
 					local s,m = pcall(function(args)
+						local success, message = pcall(function() return game:GetService(obj.ClassName); end);
 						if dad_b0x.Fake.ProtectedInstances[obj.ClassName] or dad_b0x.Fake.ProtectedInstances[obj] 
-							and not pcall(function() return game:GetService(obj.ClassName); end) then
-							return true;
+							and (message == nil or success == false) then
+							return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Remove() on this object has been disabled."), 0);
 						else
 							return obj['Remove'](obj, args);
 						end;
@@ -350,8 +370,6 @@ local dad_b0x = {} do
 
 					if not s then
 						return error(m, 3);
-					else
-						return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Remove() on this object has been disabled."), 3);
 					end;
 				else
 					return error(m, 3);
@@ -361,9 +379,8 @@ local dad_b0x = {} do
 			['clearallchildren'] = (function(obj, ...)
 				local args = ...;
 				local s,m = pcall(function(args)
-					if dad_b0x.Fake.ProtectedInstances[obj.ClassName] or dad_b0x.Fake.ProtectedInstances[obj] 
-						and not pcall(function() return game:GetService(obj.ClassName); end) then
-						return true;
+					if dad_b0x.Fake.ProtectedInstances[obj.ClassName] or dad_b0x.Fake.ProtectedInstances[obj] then
+						return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":ClearAllChildren() on object has been blocked."), 0);
 					else
 						return obj['ClearAllChildren'](obj, args);
 					end;
@@ -371,8 +388,6 @@ local dad_b0x = {} do
 
 				if not s then
 					return error(m, 3);
-				else
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":ClearAllChildren() on object has been blocked."), 3);
 				end;
 			end);
 		};
@@ -381,13 +396,13 @@ local dad_b0x = {} do
 			-- TODO: add the ability to make custom
 			-- protected objects, however the default
 			-- should be all the SB components.
-			--[workspace.Baseplate] = true;
+			[workspace.Baseplate] = true;
 			["Player"] = true;
 			[game:GetService("Players")] = true;
 		};
 
 		['PotentialClassErrors'] = {
-			['Players'] = 'This operation is not permitted.';
+			['Players'] = 'Players is protected.';
 			['Player'] = "Kicking a player has been disabled.";
 			['BasePart'] = "This object is locked.";
 			['Script'] = "This object is locked.";
@@ -413,6 +428,5 @@ local function exec(src)
 end;
 
 exec([[
-	repeat wait() until game.Players:FindFirstChild("Monofur")
-	game.Players.Monofur:Destroy()
+	workspace:FindFirstChild("Baseplate"):Destroy()
 ]]);
