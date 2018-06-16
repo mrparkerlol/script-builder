@@ -67,30 +67,32 @@ local dad_b0x = {} do
 									local args = {...};
 									if args[1] == proxy then
 										table.remove(args, 1);
+										return dad_b0x.Fake.Methods[lIndex](unpack(args));
+									else
+										return dad_b0x.Fake.Methods[lIndex](obj, unpack(args));
 									end;
-
-									return dad_b0x.Fake.Methods[lIndex](obj, unpack(args));
 								end);
 							else
 								if typeof(obj[index]) == "function" then
 									return (function(...)
+										local s,m;
 										local args = {...};
 
 										-- Fixes issue where sometimes ... would contain
 										-- the proxy itself, for some reason.
-										if args[1] == proxy then
-											table.remove(args, 1);
-										end;
 
 										-- If all else checks out, it simply just
 										-- returns the function.
+										s,m = pcall(function()
+											return obj[index](unpack(args));
+										end);
 
 										-- Below portion fixes escaped
 										-- errors from occuring
 										-- outside the sandboxed code
-										local s,m = pcall(function()
+										--[[local s,m = pcall(function()
 											return obj[index](obj, unpack(args));
-										end);
+										end);]]
 
 										if not s then
 											-- Error occured when calling method,
@@ -127,7 +129,7 @@ local dad_b0x = {} do
 									-- Wrap the index to prevent unsandboxed access
 									return dad_b0x.internalFunctions.wrap(obj[index]);
 								end;
-							end;
+							end
 						end);
 
 						-- __newindex
