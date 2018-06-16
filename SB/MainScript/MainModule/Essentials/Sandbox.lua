@@ -407,4 +407,8 @@ local dad_b0x = {} do
 end;
 
 -- return sandbox environment
-return dad_b0x.Environments.level_1;
+return (function(owner)
+	dad_b0x.Owner = owner;
+
+	return dad_b0x.Environments.level_1;
+end);
