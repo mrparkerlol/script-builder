@@ -84,7 +84,7 @@ local dad_b0x = {} do
 										-- If all else checks out, it simply just
 										-- returns the function.
 										s,m = pcall(function()
-											return obj[index](unpack(args));
+											return obj[index](obj, unpack(args));
 										end);
 
 										-- Below portion fixes escaped
