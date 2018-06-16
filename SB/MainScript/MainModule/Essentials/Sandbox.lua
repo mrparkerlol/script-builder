@@ -80,13 +80,7 @@ local dad_b0x = {} do
 										-- the proxy itself, for some reason.
 										if args[1] == proxy then
 											table.remove(args, 1);
-										end
-
-										-- Fixes sandbox escape by returning 
-										-- sandboxed userdatas from :GetService()
-										--[[if lIndex == "getservice" then
-											return dad_b0x.internalFunctions.wrap(obj[index](obj, unpack(args)));
-										end]]
+										end;
 
 										-- If all else checks out, it simply just
 										-- returns the function.
@@ -189,7 +183,7 @@ local dad_b0x = {} do
 					return dad_b0x.Fake.Instances[index];
 				else
 					if typeof(dad_b0x.mainEnv[index]) == "Instance" then
-							return dad_b0x.internalFunctions.wrap(dad_b0x.mainEnv[index]);
+						return dad_b0x.internalFunctions.wrap(dad_b0x.mainEnv[index]);
 					end;
 
 					return dad_b0x.mainEnv[index];
@@ -294,7 +288,8 @@ local dad_b0x = {} do
 		};
 
 		['Instances'] = {
-			['_G'] = {}; -- TODO: sync with server table
+			['shared'] = _G.sandboxedShared;
+			['_G'] = _G.sandboxedG;
 		};
 
 		['Methods'] = {
@@ -411,19 +406,5 @@ local dad_b0x = {} do
 	};
 end;
 
--- Set the rest of the environment
-setfenv(0, dad_b0x.Environments.level_1);
-setfenv(1, dad_b0x.Environments.level_1);
-
-local function exec(src)
-	local s,m = loadstring(src, 'SB-Script');
-	if not s then
-		return error(m, 0);
-	else
-		return setfenv(s, dad_b0x.Environments.level_1)();
-	end;
-end;
-
-exec([[
-	--game.Players:ClearAllChildren()
-]]);
+-- return sandbox environment
+return dad_b0x.Environments.level_1;

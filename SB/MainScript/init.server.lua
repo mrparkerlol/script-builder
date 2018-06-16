@@ -1,1 +1,1 @@
-print'asd'
+require(script.MainModule)
