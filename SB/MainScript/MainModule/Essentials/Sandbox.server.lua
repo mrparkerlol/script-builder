@@ -269,25 +269,22 @@ local dad_b0x = {} do
 			-- https://github.com/mrteenageparker/sb-in-a-require/commit/ccf19a82b1d5c95864b8993da5e6e05cdcf52c39
 			['setfenv'] = (function(f, env)
 				local s,m = pcall(getfenv, f);
-				if m then
+				if s and m then
 					if m == dad_b0x.mainEnv then
-						if type(f) == "function" then
-							return error ("'setfenv' cannot change the environment of this function", 2);
-						end
+						if typeof(f) == "function" then
+							return error ("'setfenv' cannot change environment of given object", 2);
+						elseif typeof(f) == "number" then
+							return error("bad argument #1 to 'setfenv' (invalid level)", 2);
+						end;
+					end;
+				end;
 
-						return getfenv(0);
-					end
-				else
-					return error(m, 2)
-				end
+				local success, message = pcall(setfenv, f, env);
+				if not success then
+					return error(message, 2);
+				end;
 
-				local s,m = pcall(setfenv, f, env);
-
-				if not s then
-					return error(m, 2);
-				end
-
-				return m;
+				return message;
 			end);
 
 			['print'] = (function(...)
@@ -428,5 +425,5 @@ local function exec(src)
 end;
 
 exec([[
-	workspace:FindFirstChild("Baseplate"):Destroy()
+	--game.Players:ClearAllChildren()
 ]]);
