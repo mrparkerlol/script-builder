@@ -71,24 +71,28 @@ local dad_b0x = {} do
 								return obj[index];
 							end);
 
-							if dad_b0x.Fake.Methods[lIndex] and (dad_b0x.Fake.ProtectedInstances[obj.ClassName]
-								or dad_b0x.Fake.ProtectedInstances[obj]) then
-								return (function(...)
-									return dad_b0x.Fake.Methods[lIndex](dad_b0x.internalFunctions.getReal({...}));
-								end);
-							else
-								if typeof(m) == "function" then
-									if dad_b0x.Fake.ProtectedFunctions[m] then
-										local fake = (function(...)
-											return dad_b0x.Fake.Methods[lIndex](dad_b0x.internalFunctions.getReal({...}));
-										end);
-										
-										dad_b0x.CachedInstances.funcCache[lIndex] = fake;
+							if dad_b0x.CachedInstances.funcCache[m] then
+								print('cache hit');
 
-										return fake;
-									else
-										if dad_b0x.CachedInstances.funcCache[m] then
-											return dad_b0x.CachedInstances.funcCache[m];
+								return dad_b0x.CachedInstances.funcCache[m];
+							else
+								if dad_b0x.Fake.Methods[lIndex] and (dad_b0x.Fake.ProtectedInstances[obj.ClassName]
+								or dad_b0x.Fake.ProtectedInstances[obj]) then
+									local fake = (function(...)
+										return dad_b0x.Fake.Methods[lIndex](dad_b0x.internalFunctions.getReal({...}));
+									end);
+
+									dad_b0x.CachedInstances.funcCache[lIndex] = fake;
+								else
+									if typeof(m) == "function" then
+										if dad_b0x.Fake.ProtectedFunctions[m] then
+											local fake = (function(...)
+												return dad_b0x.Fake.Methods[lIndex](dad_b0x.internalFunctions.getReal({...}));
+											end);
+											
+											dad_b0x.CachedInstances.funcCache[lIndex] = fake;
+
+											return fake;
 										else
 											local func = (function(...)
 												local succ, msg;
@@ -137,15 +141,15 @@ local dad_b0x = {} do
 													end;
 												end;
 											end);
-		
+
 											dad_b0x.CachedInstances.funcCache[m] = func;
-		
+
 											return func;
 										end;
+									else
+										-- Wrap the index to prevent unsandboxed access
+										return dad_b0x.internalFunctions.wrap(m);
 									end;
-								else
-									-- Wrap the index to prevent unsandboxed access
-									return dad_b0x.internalFunctions.wrap(m);
 								end;
 							end;
 						end);
@@ -333,12 +337,38 @@ local dad_b0x = {} do
 		['Methods'] = {
 			['destroy'] = (function(...)
 				local args = ...;
-				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Destroy() on object has been disabled."), 3);
+				
+				if dad_b0x.Fake.ProtectedInstances[args[1]] then
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Destroy() on object has been disabled."), 3);
+				else
+					local s,m = pcall(function()
+						return game.Destroy(unpack(args));
+					end);
+
+					if not s then
+						return error(m, 3);
+					else
+						return m;
+					end;
+				end;
 			end);
 
 			['remove'] = (function(...)
 				local args = ...;
-				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."), 3);
+				
+				if dad_b0x.Fake.ProtectedInstances[args[1]] then
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."), 3);
+				else
+					local s,m = pcall(function()
+						return game.Remove(unpack(args));
+					end);
+
+					if not s then
+						return error(m, 3);
+					else
+						return m;
+					end;
+				end;
 			end);
 
 			['kick'] = (function(...)
@@ -356,7 +386,20 @@ local dad_b0x = {} do
 
 			['clearallchildren'] = (function(...)
 				local args = ...;
-				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."), 3);
+				
+				if dad_b0x.Fake.ProtectedInstances[args[1]] then
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."), 3);
+				else
+					local s,m = pcall(function()
+						return game.ClearAllChildren(unpack(args));
+					end);
+
+					if not s then
+						return error(m, 3);
+					else
+						return m;
+					end;
+				end;
 			end);
 		};
 
