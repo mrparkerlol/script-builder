@@ -34,6 +34,7 @@ local dad_b0x = {} do
 
 		['Instances'] = {};
 		['ProtectedInstances'] = {};
+		['ProtectedFunctions'] = {};
 		['PotentialClassErrors'] = {};
 	};
 
@@ -77,60 +78,70 @@ local dad_b0x = {} do
 								end);
 							else
 								if typeof(m) == "function" then
-									if dad_b0x.CachedInstances.funcCache[m] then
-										return dad_b0x.CachedInstances.funcCache[m];
-									else
-										local func = (function(...)
-											local succ, msg;
-											
-											-- Below portion fixes escaped
-											-- errors from occuring
-											-- outside the sandboxed code
-											
-											-- If all else checks out, it simply just
-											-- returns the function.
-											local realArgs = dad_b0x.internalFunctions.getReal({...});
-											if realArgs ~= nil then
-												succ, msg = dad_b0x.mainEnv.pcall(m, unpack(realArgs));
-											--[[else
-												succ, msg = dad_b0x.mainEnv.pcall(m, obj, ...);]]
-											end;
-											
-											if not succ then
-												-- Error occured when calling method,
-												-- handle it accordingly
-												return error(msg, 2);
-											else
-												-- Successful execution - return the
-												-- output (if any), or sandbox
-												-- the return data
-												if typeof(msg) == "table" then
-													for i=0, #msg do
-														if dad_b0x.Fake.ProtectedInstances[msg[i]] then
-															msg[i] = dad_b0x.internalFunctions.wrap(m[i]);
-														elseif dad_b0x.Blocked.Instances[msg[i]] then
-															table.remove(msg, i);
-														end;
-													end;
-													
-													return msg;
-												elseif typeof(msg) == "Instance" and
-													(dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName]) or
-													(dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName]) then
-													if dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName] then
-														return dad_b0x.internalFunctions.wrap(msg);
-													elseif dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName] then
-														return nil;
-													end;
-												else
-													return msg;
-												end;
-											end;
+									if dad_b0x.Fake.ProtectedFunctions[m] then
+										local fake = (function(...)
+											return dad_b0x.Fake.Methods[lIndex](dad_b0x.internalFunctions.getReal({...}));
 										end);
-	
-										dad_b0x.CachedInstances.funcCache[m] = func;
-	
-										return func;
+										
+										dad_b0x.CachedInstances.funcCache[lIndex] = fake;
+
+										return fake;
+									else
+										if dad_b0x.CachedInstances.funcCache[m] then
+											return dad_b0x.CachedInstances.funcCache[m];
+										else
+											local func = (function(...)
+												local succ, msg;
+												
+												-- Below portion fixes escaped
+												-- errors from occuring
+												-- outside the sandboxed code
+												
+												-- If all else checks out, it simply just
+												-- returns the function.
+												local realArgs = dad_b0x.internalFunctions.getReal({...});
+												if realArgs ~= nil then
+													succ, msg = dad_b0x.mainEnv.pcall(m, unpack(realArgs));
+												--[[else
+													succ, msg = dad_b0x.mainEnv.pcall(m, obj, ...);]]
+												end;
+												
+												if not succ then
+													-- Error occured when calling method,
+													-- handle it accordingly
+													return error(msg, 2);
+												else
+													-- Successful execution - return the
+													-- output (if any), or sandbox
+													-- the return data
+													if typeof(msg) == "table" then
+														for i=0, #msg do
+															if dad_b0x.Fake.ProtectedInstances[msg[i]] then
+																msg[i] = dad_b0x.internalFunctions.wrap(m[i]);
+															elseif dad_b0x.Blocked.Instances[msg[i]] then
+																table.remove(msg, i);
+															end;
+														end;
+														
+														return msg;
+													elseif typeof(msg) == "Instance" and
+														(dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName]) or
+														(dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName]) then
+														if dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName] then
+															return dad_b0x.internalFunctions.wrap(msg);
+														elseif dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName] then
+															return nil;
+														end;
+													else
+														return msg;
+													end;
+												end;
+											end);
+		
+											dad_b0x.CachedInstances.funcCache[m] = func;
+		
+											return func;
+										end;
 									end;
 								else
 									-- Wrap the index to prevent unsandboxed access
@@ -154,7 +165,7 @@ local dad_b0x = {} do
 						-- returning a cached result
 						-- rather than re-creating
 						-- the newproxy every single time
-						dad_b0x.CachedInstances.fake[obj] = proxy;
+						dad_b0x.CachedInstances.fake[obj]		= proxy;
 						dad_b0x.CachedInstances.real[proxy] = obj;
 
 						-- return the userdata rather than the metatable
@@ -171,7 +182,7 @@ local dad_b0x = {} do
 				local tbl = {};
 				for i=1, #obj do
 					if dad_b0x.CachedInstances.real[obj[i]] then
-						table.insert(tbl, dad_b0x.CachedInstances.real[obj[i]])
+						table.insert(tbl, dad_b0x.CachedInstances.real[obj[i]]);
 					else
 						table.insert(tbl, obj[i]);
 					end;
@@ -356,7 +367,11 @@ local dad_b0x = {} do
 			[workspace.Baseplate] = true;
 			["Player"] = true;
 			[game:GetService("Players")] = true;
-			--[game] = true;
+		};
+
+		['ProtectedFunctions'] = {
+			[game.Destroy] = true;
+			[game.Remove] = true;
 		};
 
 		['PotentialClassErrors'] = {
