@@ -415,6 +415,7 @@ local dad_b0x = {} do
 		['ProtectedFunctions'] = {
 			[game.Destroy] = true;
 			[game.Remove] = true;
+			[game.ClearAllChildren] = true;
 		};
 
 		['PotentialClassErrors'] = {
