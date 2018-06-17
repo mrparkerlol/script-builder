@@ -41,6 +41,7 @@ local dad_b0x = {} do
 	dad_b0x.CachedInstances = {
 		['real'] = {};
 		['fake'] = {};
+		['funcCache'] = {};
 	};
 
 	-- Internalized functions
@@ -76,54 +77,61 @@ local dad_b0x = {} do
 								end);
 							else
 								if typeof(m) == "function" then
-									return (function(...)
-										local succ, msg;
-										--local arg = {...};
-
-										-- Below portion fixes escaped
-										-- errors from occuring
-										-- outside the sandboxed code
-			
-										-- If all else checks out, it simply just
-										-- returns the function.
-										local realArgs = dad_b0x.internalFunctions.getReal({...});
-										if realArgs ~= nil then
-											succ, msg = dad_b0x.mainEnv.pcall(m, unpack(realArgs));
-										--[[else
-											succ, msg = dad_b0x.mainEnv.pcall(m, obj, ...);]]
-										end;
-
-										if not succ then
-											-- Error occured when calling method,
-											-- handle it accordingly
-											return error(msg, 2);
-										else
-											-- Successful execution - return the
-											-- output (if any), or sandbox
-											-- the return data
-											if typeof(msg) == "table" then
-												for i=0, #msg do
-													if dad_b0x.Fake.ProtectedInstances[msg[i]] then
-														msg[i] = dad_b0x.internalFunctions.wrap(m[i]);
-													elseif dad_b0x.Blocked.Instances[msg[i]] then
-														table.remove(msg, i);
-													end;
-												end;
-			
-												return msg;
-											elseif typeof(msg) == "Instance" and
-												(dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName]) or
-												(dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName]) then
-												if dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName] then
-													return dad_b0x.internalFunctions.wrap(msg);
-												elseif dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName] then
-													return nil;
-												end;
-											else
-												return msg;
+									if dad_b0x.CachedInstances.funcCache[m] then
+										return dad_b0x.CachedInstances.funcCache[m];
+									else
+										local func = (function(...)
+											local succ, msg;
+											
+											-- Below portion fixes escaped
+											-- errors from occuring
+											-- outside the sandboxed code
+				
+											-- If all else checks out, it simply just
+											-- returns the function.
+											local realArgs = dad_b0x.internalFunctions.getReal({...});
+											if realArgs ~= nil then
+												succ, msg = dad_b0x.mainEnv.pcall(m, unpack(realArgs));
+											--[[else
+												succ, msg = dad_b0x.mainEnv.pcall(m, obj, ...);]]
 											end;
-										end;
-									end);
+	
+											if not succ then
+												-- Error occured when calling method,
+												-- handle it accordingly
+												return error(msg, 2);
+											else
+												-- Successful execution - return the
+												-- output (if any), or sandbox
+												-- the return data
+												if typeof(msg) == "table" then
+													for i=0, #msg do
+														if dad_b0x.Fake.ProtectedInstances[msg[i]] then
+															msg[i] = dad_b0x.internalFunctions.wrap(m[i]);
+														elseif dad_b0x.Blocked.Instances[msg[i]] then
+															table.remove(msg, i);
+														end;
+													end;
+				
+													return msg;
+												elseif typeof(msg) == "Instance" and
+													(dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName]) or
+													(dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName]) then
+													if dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName] then
+														return dad_b0x.internalFunctions.wrap(msg);
+													elseif dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName] then
+														return nil;
+													end;
+												else
+													return msg;
+												end;
+											end;
+										end);
+	
+										dad_b0x.CachedInstances.funcCache[m] = func;
+	
+										return func;
+									end;
 								else
 									-- Wrap the index to prevent unsandboxed access
 									return dad_b0x.internalFunctions.wrap(m);
