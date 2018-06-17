@@ -86,7 +86,7 @@ local dad_b0x = {} do
 											-- Below portion fixes escaped
 											-- errors from occuring
 											-- outside the sandboxed code
-				
+											
 											-- If all else checks out, it simply just
 											-- returns the function.
 											local realArgs = dad_b0x.internalFunctions.getReal({...});
@@ -95,7 +95,7 @@ local dad_b0x = {} do
 											--[[else
 												succ, msg = dad_b0x.mainEnv.pcall(m, obj, ...);]]
 											end;
-	
+											
 											if not succ then
 												-- Error occured when calling method,
 												-- handle it accordingly
@@ -112,7 +112,7 @@ local dad_b0x = {} do
 															table.remove(msg, i);
 														end;
 													end;
-				
+													
 													return msg;
 												elseif typeof(msg) == "Instance" and
 													(dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName]) or
@@ -320,28 +320,18 @@ local dad_b0x = {} do
 		};
 
 		['Methods'] = {
-			['destroy'] = (function(obj, ...)
-				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Destroy() on object has been disabled."), 0);
+			['destroy'] = (function(...)
+				local args = ...;
+				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Destroy() on object has been disabled."), 3);
 			end);
 
-			['remove'] = (function(obj, ...)
-				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Remove() on this object has been disabled."), 0);
+			['remove'] = (function(...)
+				local args = ...;
+				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."), 3);
 			end);
 
 			['kick'] = (function(...)
-				local args = {...};
-				local WhitelistedArgs = {
-					['boolean'] = true;
-					['nil'] = true;
-					['string'] = true;
-				};
-
-				for i=0, #args do
-					if typeof(args[i]) ~= "Instance" or not WhitelistedArgs[string.lower(typeof(args[i]))] then
-						return error("Unable to cast value to std::string", 3);
-					end;
-				end;
-
+				local args = ...;
 				local s,m = pcall(function()
 					return args[1]['Kick'];
 				end);
@@ -349,12 +339,13 @@ local dad_b0x = {} do
 				if not s then
 					return error(m, 0);
 				else
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":Kick() on this object has been disabled."), 0);
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Kick() on this object has been disabled."), 3);
 				end;
 			end);
 
-			['clearallchildren'] = (function(obj, ...)
-				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(obj, ":ClearAllChildren() on object has been blocked."), 0);
+			['clearallchildren'] = (function(...)
+				local args = ...;
+				return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."), 3);
 			end);
 		};
 
