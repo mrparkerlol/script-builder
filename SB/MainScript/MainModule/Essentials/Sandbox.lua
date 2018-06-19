@@ -83,6 +83,8 @@ local dad_b0x = {} do
 									end);
 
 									dad_b0x.CachedInstances.funcCache[lIndex] = fake;
+
+									return fake;
 								else
 									if typeof(m) == "function" then
 										if dad_b0x.Fake.ProtectedFunctions[m] then
@@ -128,14 +130,10 @@ local dad_b0x = {} do
 														end;
 														
 														return msg;
-													elseif typeof(msg) == "Instance" and
-														(dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName]) or
-														(dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName]) then
-														if dad_b0x.Fake.ProtectedInstances[msg] or dad_b0x.Fake.ProtectedInstances[msg.ClassName] then
-															return dad_b0x.internalFunctions.wrap(msg);
-														elseif dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName] then
-															return nil;
-														end;
+													elseif typeof(msg) == "Instance" and (dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName]) then
+														return nil;
+													elseif typeof(msg) == "Instance" then
+														return dad_b0x.internalFunctions.wrap(msg);
 													else
 														return msg;
 													end;
@@ -263,17 +261,15 @@ local dad_b0x = {} do
 					return error('Bad argument to #1, \'value\' expected', 2);
 				else
 					local success_func = {pcall(luaFunc)};
-
 					if not success_func[1] then
 						local e,r = pcall(handler, success_func[2]);
-
 						if not e then
 							return false, 'error in handling';
-						end
-					end
+						end;
+					end;
 
 					return unpack(success_func);
-				end
+				end;
 			end);
 
 			-- getfenv is sandboxed to prevent
@@ -293,9 +289,9 @@ local dad_b0x = {} do
 							return getfenv(0);
 						else
 							return m;
-						end
-					end
-				end
+						end;
+					end;
+				end;
 			end);
 
 			-- setfenv is sandboxed to prevent
@@ -308,7 +304,7 @@ local dad_b0x = {} do
 				if s and m then
 					if m == dad_b0x.mainEnv then
 						if typeof(f) == "function" then
-							return error ("'setfenv' cannot change environment of given object", 2);
+							return error("'setfenv' cannot change environment of given object", 2);
 						elseif typeof(f) == "number" then
 							return error("bad argument #1 to 'setfenv' (invalid level)", 2);
 						end;
@@ -355,7 +351,6 @@ local dad_b0x = {} do
 
 			['remove'] = (function(...)
 				local args = ...;
-				
 				if dad_b0x.Fake.ProtectedInstances[args[1]] then
 					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."), 3);
 				else
@@ -386,7 +381,6 @@ local dad_b0x = {} do
 
 			['clearallchildren'] = (function(...)
 				local args = ...;
-				
 				if dad_b0x.Fake.ProtectedInstances[args[1]] then
 					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."), 3);
 				else
