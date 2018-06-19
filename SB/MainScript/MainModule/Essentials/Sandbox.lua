@@ -408,7 +408,11 @@ local dad_b0x = {} do
 
 		['ProtectedFunctions'] = {
 			[game.Destroy] = true;
+			[game.destroy] = true;
+
 			[game.Remove] = true;
+			[game.remove] = true;
+
 			[game.ClearAllChildren] = true;
 		};
 
