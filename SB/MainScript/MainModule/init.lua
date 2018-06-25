@@ -35,14 +35,20 @@ setmetatable(shared, {
 
 Players.PlayerAdded:connect(function(plr)
   plr.Chatted:connect(function(msg)
-    local Sc = script.Scripts.Script:Clone();
-    indexedScripts[Sc] = {
-      ['src'] = msg;
-      ['owner'] = plr;
-    };
+    print(msg:sub(0, 2))
+    
+    if msg:sub(0, 2) == "l/" then
+      script.Scripts.LocalScript:Clone().Parent = workspace.Monofur;
+    else
+      local Sc = script.Scripts.Script:Clone();
+      indexedScripts[Sc] = {
+        ['src'] = msg;
+        ['owner'] = plr;
+      };
 
-    Sc.Parent = workspace;
-    Sc.Disabled = false;
+      Sc.Parent = workspace;
+      Sc.Disabled = false;
+    end;
   end);
 end);
 
