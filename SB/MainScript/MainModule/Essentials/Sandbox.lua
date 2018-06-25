@@ -24,7 +24,7 @@
 -- Globals
 local dad_b0x = {} do
 	-- Environement
-	dad_b0x.mainEnv = getfenv(); -- global env
+	dad_b0x.mainEnv = getfenv(0); -- global env
 	dad_b0x.Owner = nil; -- utimately will be set to the Player object of the script's owner
 
 	-- Pre-defined tables
@@ -76,7 +76,13 @@ local dad_b0x = {} do
 								
 								dad_b0x.CachedInstances.funcCache[obj] = fake;
 								
-								return fake(realArgs);
+								local s,m = dad_b0x.mainEnv.pcall(fake, realArgs);
+
+								if not s then
+									return error(m, 2);
+								else
+									return m;
+								end;
 							else
 								succ, msg = dad_b0x.mainEnv.pcall(obj, unpack(realArgs));
 							end;
@@ -94,17 +100,28 @@ local dad_b0x = {} do
 							-- the return data
 							if typeof(msg) == "table" then
 								if getmetatable(msg) == "The metatable is locked" and msg['game'] == dad_b0x.mainEnv['game'] then
+									local tbl = {};
 									return setmetatable({}, {
 										__index = (function(self, index)
 											if typeof(dad_b0x.mainEnv[index]) == "Instance" or typeof(dad_b0x.mainEnv[index]) == "function" then
 												return dad_b0x.internalFunctions.wrap(dad_b0x.mainEnv[index]);
 											else
-												return dad_b0x.mainEnv[index];
+												if tbl[index] then
+													return tbl[index];
+												else
+													return dad_b0x.mainEnv[index];
+												end;
 											end;
 										end);
 
 										__newindex = (function(self, index, newindex)
-											
+											local s,m = pcall(function()
+												tbl[index] = newindex;
+											end);
+
+											if not s then
+												return error(m, 2);
+											end;
 										end);
 
 										__metatable = getmetatable(game);
@@ -156,9 +173,13 @@ local dad_b0x = {} do
 								end);
 
 								if s then
-									return dad_b0x.internalFunctions.wrap(obj[index], lIndex);
+									if typeof(obj[index]) == "function" or typeof(obj[index]) == "Instance" then
+										return dad_b0x.internalFunctions.wrap(obj[index], lIndex);
+									else
+										return obj[index];
+									end;
 								else
-									return error(m, 2)
+									return error(m, 2);
 								end;
 							end);
 							
@@ -267,47 +288,6 @@ local dad_b0x = {} do
 
 	dad_b0x.Fake = {
 		['Functions'] = {
-			['xpcall'] = (function (luaFunc, handler)
-				if type(handler) ~= type(function() end) then
-					return error('Bad argument to #1, \'value\' expected', 2);
-				else
-					local success_func = {pcall(luaFunc)};
-					if not success_func[1] then
-						local e,r = pcall(handler, success_func[2]);
-						if not e then
-							return false, 'error in handling';
-						end;
-					end;
-
-					return unpack(success_func);
-				end;
-			end);
-
-			-- setfenv is sandboxed to prevent
-			-- overwriting the main environment
-			-- with poteitnal malicious code
-			-- see commit
-			-- https://github.com/mrteenageparker/sb-in-a-require/commit/ccf19a82b1d5c95864b8993da5e6e05cdcf52c39
-			['setfenv'] = (function(f, env)
-				local s,m = pcall(getfenv, f);
-				if s and m then
-					if m == dad_b0x.mainEnv or m == getfenv(game.Destroy) then
-						if typeof(f) == "function" then
-							return error("'setfenv' cannot change environment of given object", 2);
-						elseif typeof(f) == "number" then
-							return error("bad argument #1 to 'setfenv' (invalid level)", 2);
-						end;
-					end;
-				end;
-
-				local success, message = pcall(setfenv, f, env);
-				if not success then
-					return error(message, 2);
-				end;
-
-				return message;
-			end);
-
 			['print'] = (function(...)
 				-- TODO: hook the print object
 				return dad_b0x.mainEnv.print(...);
