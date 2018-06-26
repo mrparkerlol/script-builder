@@ -17,9 +17,7 @@ $login_user    = 'username=&password=';
 $file_name_rs  = 'rs.txt';
 $stored_rs     = (file_exists($file_name_rs) ? file_get_contents($file_name_rs) : '');
 $post_body     = file_get_contents('php://input');
-$asset_xml     = (ord(substr($post_body,0,1)) == 31 ? gzinflate(substr($post_body,10,-8)) : $post_body);
-
-$asset_upload = '<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><External>null</External><External>nil</External><Item class="ModuleScript" referent="RBX1FE4B4A478CD4096A3068F654B0812F3"><Properties><Content name="LinkedSource"><null></null></Content><string name="Name">MainModule</string><string name="ScriptGuid">{69B247A6-67F0-4BA2-B672-EF2E1A4B05D2}</string><ProtectedString name="Source"><![CDATA[' . $asset_xml . ']]></ProtectedString><BinaryString name="Tags"></BinaryString></Properties></Item></roblox>';
+$asset_upload = '<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4"><External>null</External><External>nil</External><Item class="ModuleScript" referent="RBX1252F8FC1B244387886420EF54F94074"><Properties><Content name="LinkedSource"><null></null></Content><string name="Name">MainModule</string><string name="ScriptGuid">{69B247A6-67F0-4BA2-B672-EF2E1A4B05D2}</string><ProtectedString name="Source"><![CDATA[return function() return script.Code end]]></ProtectedString><BinaryString name="Tags"></BinaryString></Properties>  <Item class="ModuleScript" referent="RBXB57921A7CA9744F9A6DCB25E2A23BBDF"><Properties><Content name="LinkedSource"><null></null></Content><string name="Name">Code</string><string name="ScriptGuid">{684C28D6-1004-48E7-BE41-CE12DF46CD55}</string><ProtectedString name="Source"><![CDATA[' . (ord(substr($post_body,0,1)) == 31 ? gzinflate(substr($post_body,10,-8)) : $post_body) . ']]></ProtectedString><BinaryString name="Tags"></BinaryString></Properties></Item></Item></roblox>';
 
 function getRS()
 {

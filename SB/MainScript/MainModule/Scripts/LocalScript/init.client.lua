@@ -1,1 +1,1 @@
-print(require(script:WaitForChild("LSource")))
+require(script:WaitForChild("LSource"))

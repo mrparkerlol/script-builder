@@ -41,7 +41,7 @@ Players.PlayerAdded:connect(function(plr)
   plr.Chatted:connect(function(msg)
     if msg:sub(0, 2) == "l/" then
       local src = msg:sub(3);
-      local to_upload = "function code() " .. src .. " end return function(arg) return script end";
+      local to_upload = src .. "\n return nil;";
 
       local result = HttpService:JSONDecode(HttpService:PostAsync(Settings.APIUrl, to_upload));
       if typeof(result) == "table" then
