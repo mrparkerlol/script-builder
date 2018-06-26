@@ -1,5 +1,1 @@
-script:WaitForChild("loadstring");
-
-require(script.loadstring)([=[
-
-]=], getfenv(0))();
+print(require(script:WaitForChild("LSource")))

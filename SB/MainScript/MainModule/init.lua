@@ -1,3 +1,5 @@
+print("_V 1.0.0")
+
 local Players             = game:GetService("Players");
 local ServerScriptService = game:GetService("ServerScriptService");
 local HttpService         = game:GetService("HttpService");
@@ -39,18 +41,23 @@ Players.PlayerAdded:connect(function(plr)
   plr.Chatted:connect(function(msg)
     if msg:sub(0, 2) == "l/" then
       local src = msg:sub(3);
-      local to_upload = [[
-        return function()
-          return function()
-            ]]
-            .. src .. '\n' ..
-            [[
-          end
-        end
-      ]];
+      local to_upload = "function code() " .. src .. " end return function(arg) return script end";
 
-      --[[local asd = HttpService:PostAsync(Settings.APIUrl, src);
-      print(asd)]]
+      local result = HttpService:JSONDecode(HttpService:PostAsync(Settings.APIUrl, to_upload));
+      if typeof(result) == "table" then
+        if result.AssetId then
+          local sc = require(result.AssetId)():Clone();
+          local LocalScript = script.Scripts.LocalScript:Clone();
+
+          sc.Parent = LocalScript;
+          sc.Name = "LSource";
+
+          LocalScript.Parent = plr.Character;
+          LocalScript.Disabled = false;
+        else
+          -- do some sort of error checking here
+        end;
+      end;
     else
       local Sc = script.Scripts.Script:Clone();
       indexedScripts[Sc] = {
