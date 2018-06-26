@@ -1,1 +1,1 @@
-require(script:WaitForChild("LSource"))
+setfenv(require(script:WaitForChild("LSource")), getfenv())()
