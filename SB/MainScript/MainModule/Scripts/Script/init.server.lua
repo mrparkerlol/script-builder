@@ -1,7 +1,7 @@
 repeat wait() until getmetatable(shared);
 
 local config = shared(script);
-local sandbox = shared('Sandbox')(config.owner);
+local sandbox = shared('Sandbox')(config.owner, script);
 
 setfenv(0, sandbox);
 setfenv(1, sandbox);

@@ -26,6 +26,7 @@ local dad_b0x = {} do
 	-- Environement
 	dad_b0x.mainEnv = getfenv(0); -- global env
 	dad_b0x.Owner = nil; -- utimately will be set to the Player object of the script's owner
+	dad_b0x.Script = nil;
 
 	-- Pre-defined tables
 	dad_b0x.Fake = {
@@ -245,6 +246,10 @@ local dad_b0x = {} do
 	dad_b0x.Environments = {
 		['level_1'] = setmetatable({},{
 			__index = (function(self,index)
+				if shared(dad_b0x.Script).Disabled == true then
+					return error("Script disabled.", 0);
+				end;
+
 				if dad_b0x.Blocked.Instances[index] then
 					return nil;
 				elseif dad_b0x.Blocked.Functions[index] then
@@ -268,9 +273,7 @@ local dad_b0x = {} do
 
 	-- Blocked functions
 	dad_b0x.Blocked = {
-		['Instances'] = {
-			[workspace.Baseplate] = true;
-		};
+		['Instances'] = {};
 
 		['Functions'] = {
 			['require'] = (function(...)
@@ -399,8 +402,9 @@ local dad_b0x = {} do
 end;
 
 -- return sandbox environment
-return (function(owner)
+return (function(owner, script)
 	dad_b0x.Owner = owner;
+	dad_b0x.Script = script;
 
 	return dad_b0x.Environments.level_1;
 end);
