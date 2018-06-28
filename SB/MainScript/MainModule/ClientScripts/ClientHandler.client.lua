@@ -4,43 +4,100 @@ script:Destroy();
 script = nil;
 
 local Players = game:GetService("Players");
+local LocalPlayer = Players.LocalPlayer;
 
-repeat wait() until Players.LocalPlayer
+local function CreateGui()
+  -- The console parent
+  local ConsoleGui = Instance.new("ScreenGui");
+  ConsoleGui.Name = "Console";
 
--- The console parent
-local ConsoleGui = Instance.new("ScreenGui");
+  -- Layouts
+  local LayoutSizing = Instance.new("UISizeConstraint");
+  local LayoutTextSizing = Instance.new("UITextSizeConstraint");
+  local ListLayout = Instance.new("UIListLayout");
 
--- The frames
-local MainFrame = Instance.new("Frame");
-MainFrame.Size = UDim2.new(0,576, 0,285);
-MainFrame.Position = UDim2.new(0.01,0, 0.6,0);
-MainFrame.BackgroundTransparency = 1;
-MainFrame.Parent = ConsoleGui;
+  -- The frames
+  local MainFrame = Instance.new("Frame");
+  MainFrame.Size = UDim2.new(0,576, 0,285);
+  MainFrame.Position = UDim2.new(0.01,0, 0.65,0);
+  MainFrame.BackgroundTransparency = 1;
+  MainFrame.Name = "Main";
+  MainFrame.Parent = ConsoleGui;
 
-local OutputFrame = Instance.new("Frame");
-OutputFrame.BackgroundTransparency = 0.5;
-OutputFrame.BackgroundColor3 = Color3.fromRGB(42, 42, 42);
-OutputFrame.Position = UDim2.new(0.3,0, 0,0);
-OutputFrame.Size = UDIm2.new(0,531, 0,260);
-OutputFrame.CanvasSize = UDim2.new(0,0, 0,0);
-OutputFrame.ScrollbarThickness = 8;
+  local OutputFrame = Instance.new("ScrollingFrame");
+  OutputFrame.BackgroundTransparency = 0.5;
+  OutputFrame.BackgroundColor3 = Color3.fromRGB(42, 42, 42);
+  OutputFrame.Position = UDim2.new(0.3,0, 0,0);
+  OutputFrame.Size = UDim2.new(0,531, 0,260);
+  OutputFrame.CanvasSize = UDim2.new(0,0, 0,0);
+  OutputFrame.ScrollBarThickness = 8;
+  OutputFrame.Name = "Output";
+  OutputFrame.Parent = MainFrame;
 
-local ScriptsFrame = Instance.new("Frame");
-ScriptsFrame.BackgroundTransparency = 0.5;
-ScriptsFrame.BackgroundColor3 = Color3.fromRGB(42, 42, 42);
+  ListLayout:Clone().Parent = OutputFrame;
 
--- The elements
-local CommandLine = Instance.new("TextBox");
-local TextLabel = Instance.new("TextLabel");
+  local ScriptsFrame = Instance.new("Frame");
+  ScriptsFrame.BackgroundTransparency = 0.5;
+  ScriptsFrame.BackgroundColor3 = Color3.fromRGB(42, 42, 42);
+  ScriptsFrame.Position = UDim2.new(0,0, 0,0);
+  ScriptsFrame.Size = UDim2.new(0, 159, 0, 285);
+  ScriptsFrame.Name = "Scripts";
+  ScriptsFrame.Parent = MainFrame;
 
--- Folders
-local TemplatesFolder = Instance.new("Folder");
+  ListLayout:Clone().Parent = ScriptsFrame;
 
--- Layouts
-local LayoutSizing = Instance.new("UISizeConstraint");
-local ListLayout = Instance.new("UIListLayout");
+  -- The elements
+  local CommandLine = Instance.new("TextBox");
+  CommandLine.BackgroundColor3 = Color3.fromRGB(72, 72, 72);
+  CommandLine.BackgroundTransparency = 0.5;
+  CommandLine.Position = UDim2.new(0.3,0, 0.93,0);
+  CommandLine.Size = UDim2.new(0,531, 0,20);
+  CommandLine.Font = Enum.Font.SourceSans;
+  CommandLine.PlaceholderColor3 = Color3.fromRGB(179, 179, 179);
+  CommandLine.PlaceholderText = "Type g/help for help!";
+  CommandLine.Text = "";
+  CommandLine.TextColor3 = Color3.fromRGB(255, 255, 255);
+  CommandLine.TextSize = 14;
+  CommandLine.TextXAlignment = Enum.TextXAlignment.Left;
+  CommandLine.Name = "CommandLine";
+  CommandLine.Parent = MainFrame;
 
-ConsoleGui.Name = "Console";
-MainFrame.Name = "Main";
-TemplatesFolder.Name = "Templates";
+  local TextLabel = Instance.new("TextLabel");
+  TextLabel.BackgroundTransparency = 1;
+  TextLabel.Size = UDim2.new(0,531, 0,20);
+  TextLabel.Font = Enum.Font.SourceSans;
+  TextLabel.TextXAlignment = Enum.TextXAlignment.Left;
 
+  local ErrorLabelTemplate = TextLabel:Clone();
+  ErrorLabelTemplate.TextColor3 = Color3.fromRGB(255, 0, 0);
+
+  local WarnLabelTemplate = TextLabel:Clone();
+  WarnLabelTemplate.TextColor3 = Color3.fromRGB(251, 255, 0);
+
+  local PrintLabelTemplate = TextLabel:Clone();
+  PrintLabelTemplate.TextColor3 = Color3.fromRGB(255, 255, 255);
+
+  local GeneralLabelTemplate = TextLabel:Clone();
+  GeneralLabelTemplate.TextColor3 = Color3.fromRGB(0, 255, 0);
+
+  local ScriptsLabel = TextLabel:Clone();
+  ScriptsLabel.TextColor3 = Color3.fromRGB(255, 255, 255);
+  ScriptsLabel.Size = UDim2.new(0,159, 0,16);
+  ScriptsLabel.Text = "Scripts";
+  ScriptsLabel.TextSize = 21;
+  ScriptsLabel.TextXAlignment = Enum.TextXAlignment.Center;
+  ScriptsLabel.Parent = ScriptsFrame;
+
+  local ScriptsLabelSizing = LayoutTextSizing:Clone();
+  ScriptsLabelSizing.MaxTextSize = 100;
+  ScriptsLabelSizing.MinTextSize = 25;
+  ScriptsLabelSizing.Parent = ScriptsLabel;
+
+  ConsoleGui.Parent = LocalPlayer.PlayerGui;
+end;
+
+CreateGui();
+
+LocalPlayer.CharacterAdded:connect(function()
+  CreateGui();
+end);

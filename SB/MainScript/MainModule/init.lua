@@ -15,6 +15,9 @@ _G.sandboxedG = {};
 
 local indexedScripts = {};
 
+-- Setup the game
+
+
 -- Our default baseplate to restore to
 -- when things go wrong (and they will)
 local BaseplateTemplate = Instance.new("Part")
@@ -114,6 +117,9 @@ local function killScripts(command, plr)
 end;
 
 Players.PlayerAdded:connect(function(plr)
+  repeat wait() until plr.Character;
+  script.ClientScripts.ClientHandler:Clone().Parent = plr.Backpack;
+
   plr.Chatted:connect(function(msg)
     if msg:sub(0, 2) == "l/" then
       handleCode(plr, msg:sub(3), "Local");
