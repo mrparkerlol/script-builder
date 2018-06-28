@@ -67,10 +67,13 @@ local dad_b0x = {} do
 						-- If all else checks out, it simply just
 						-- returns the function.
 						local realArgs = dad_b0x.internalFunctions.getReal({...});
-						if realArgs ~= nil then
-							if dad_b0x.Fake.ProtectedFunctions[obj] then
-								return dad_b0x.Fake.ProtectedFunctions[m];
-							elseif lIndex ~= nil and dad_b0x.Fake.Methods[lIndex] then
+						
+						if dad_b0x.Fake.ProtectedFunctions[obj] then
+							return dad_b0x.Fake.ProtectedFunctions[m];
+						end;
+						
+						if realArgs ~= nil and (typeof(realArgs) == "table" and #realArgs > 0) then
+							if lIndex ~= nil and dad_b0x.Fake.Methods[lIndex] then
 								local fake = (function(...)
 									return dad_b0x.Fake.Methods[lIndex](realArgs);
 								end);
@@ -78,7 +81,6 @@ local dad_b0x = {} do
 								dad_b0x.CachedInstances.funcCache[obj] = fake;
 								
 								local s,m = dad_b0x.mainEnv.pcall(fake, realArgs);
-
 								if not s then
 									return error(m, 2);
 								else
@@ -88,7 +90,22 @@ local dad_b0x = {} do
 								succ, msg = dad_b0x.mainEnv.pcall(obj, unpack(realArgs));
 							end;
 						else
-							succ, msg = dad_b0x.mainEnv.pcall(obj, ...);
+							if lIndex ~= nil and dad_b0x.Fake.Methods[lIndex] then
+								local fake = (function(...)
+									return dad_b0x.Fake.Methods[lIndex](...);
+								end);
+								
+								dad_b0x.CachedInstances.funcCache[obj] = fake;
+								
+								local s,m = dad_b0x.mainEnv.pcall(fake, ...);
+								if not s then
+									return error(m, 2);
+								else
+									return m;
+								end;
+							else
+								succ, msg = dad_b0x.mainEnv.pcall(obj, ...);
+							end;
 						end;
 						
 						if not succ then
@@ -250,7 +267,7 @@ local dad_b0x = {} do
 					return error("Script disabled.", 0);
 				end;
 
-				if dad_b0x.Blocked.Instances[index] then
+				if dad_b0x.mainEnv[index] and typeof(dad_b0x.mainEnv[index]) == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[dad_b0x.mainEnv[index]] or dad_b0x.Blocked.Instances[dad_b0x.mainEnv[index].ClassName]) then
 					return nil;
 				elseif dad_b0x.Blocked.Functions[index] then
 					return dad_b0x.Blocked.Functions[index];
@@ -273,7 +290,7 @@ local dad_b0x = {} do
 
 	-- Blocked functions
 	dad_b0x.Blocked = {
-		['Instances'] = {};
+		['Instances'] = _G.protectedObjects;
 
 		['Functions'] = {
 			['require'] = (function(...)

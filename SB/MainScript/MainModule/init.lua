@@ -12,11 +12,11 @@ local Settings = require(script:WaitForChild("Config"));
 -- builder tables in _G
 _G.sandboxedShared = {};
 _G.sandboxedG = {};
+_G.protectedObjects = {};
 
 local indexedScripts = {};
 
 -- Setup the game
-
 
 -- Our default baseplate to restore to
 -- when things go wrong (and they will)
@@ -118,6 +118,7 @@ end;
 
 Players.PlayerAdded:connect(function(plr)
   repeat wait() until plr.Character;
+
   script.ClientScripts.ClientHandler:Clone().Parent = plr.Backpack;
 
   plr.Chatted:connect(function(msg)

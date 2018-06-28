@@ -6,6 +6,10 @@ script = nil;
 local Players = game:GetService("Players");
 local LocalPlayer = Players.LocalPlayer;
 
+local function handleCode()
+
+end;
+
 local function CreateGui()
   -- The console parent
   local ConsoleGui = Instance.new("ScreenGui");
@@ -94,6 +98,39 @@ local function CreateGui()
   ScriptsLabelSizing.Parent = ScriptsLabel;
 
   ConsoleGui.Parent = LocalPlayer.PlayerGui;
+
+  -- Events
+  CommandLine.FocusLost:connect(function(enterPressed, key)
+    if enterPressed and key.KeyCode == Enum.KeyCode.Return then
+      local msg = CommandLine.Text;
+      CommandLine.Text = "";
+
+      if msg:sub(0, 2) == "l/" then
+        handleCode(msg:sub(3), "Local");
+      elseif msg:sub(0, 2) == "c/" then
+        handleCode(msg:sub(3), "Server");
+      elseif msg:sub(0, 2) == "h/" then
+        handleCode(msg:sub(3), "hServer");
+      elseif msg:sub(0, 3) == "hl/" then
+        handleCode(msg:sub(4), "hLocal");
+      elseif msg:sub(0, 2) == "g/" then
+        local msg = msg:sub(3);
+        if msg:sub(0, 2) == "ns" then
+          
+        elseif msg:sub(0, 6) == "ns/all" then
+          
+        elseif msg:sub(0, 1) == "c" then
+          
+        elseif msg:sub(0, 3) == "ws/" then
+          pcall(function()
+            plr.Character.Humanoid.WalkSpeed = tonumber(msg:sub(4));
+          end);
+        elseif msg:sub(0, 4) == "help" then
+          -- output
+        end;
+      end;
+    end;
+  end);
 end;
 
 CreateGui();
