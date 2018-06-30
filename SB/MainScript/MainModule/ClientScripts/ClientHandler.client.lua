@@ -6,6 +6,39 @@ script = nil;
 local Players = game:GetService("Players");
 local LocalPlayer = Players.LocalPlayer;
 
+_G.fakeGTable = {};
+_G.fakeSharedTable = {};
+hiddenItems = {};
+
+local indexedScripts = {};
+
+setmetatable(shared, {
+  __call = (function(self, sc, owner)
+    if indexedScripts[sc] then
+      return sc;
+    else
+      if sc and owner then
+        indexedScripts[sc] = {
+          ['owner'] = owner;
+          ['Disabled'] = false;
+        };
+      else
+        if typeof(sc) == "Instance" and sc.ClassName ~= "LocalScript" then
+          if owner and owner == true then
+            hiddenItems[sc] = true;
+          else
+            return hiddenItems[sc];
+          end;
+        else
+          return false;
+        end;
+      end;
+    end;
+  end);
+
+  __metatable = "This metatable is locked.";
+});
+
 local function handleCode()
 
 end;
