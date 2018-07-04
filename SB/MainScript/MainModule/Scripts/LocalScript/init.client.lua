@@ -10,14 +10,35 @@ local sharedTable = shared;
 local realPrint = print;
 local realWarn = warn;
 
+local function handleOutput(type, ...)
+  local args = {...};
+  local output = "";
+
+  for i=1, #args do
+    output = output .. ' ' .. tostring(args[i]);
+  end;
+
+  sharedTable(output, type);
+end;
+
 local _env = getfenv();
 _env['shared'] = _G.fakeSharedTable;
 _env['_G'] = _G.fakeGTable;
+_env['print'] = (function(...)
+  handleOutput("print", ...);
+
+  realPrint(...);
+end);
+_env['warn'] = (function(...)
+  handleOutput("warn", ...);
+
+  realWarn(...);
+end);
 
 setfenv(require(script:WaitForChild("LSource")), setmetatable({}, {
   __index = (function(self, index)
     if sharedTable(Script) and sharedTable(Script).Disabled == true then
-      return error("Script disabled.", 0);
+      return error("Script disabled.", 2);
     end;
 
     if typeof(_env[index]) == "Instance" and (sharedTable(_env[index]) or sharedTable(_env[index].ClassName)) then
@@ -29,7 +50,7 @@ setfenv(require(script:WaitForChild("LSource")), setmetatable({}, {
 
   __newindex = (function(self, index, newindex)
     if sharedTable(Script) and sharedTable(Script).Disabled == true then
-      return error("Script disabled.", 0);
+      return error("Script disabled.", 2);
     end;
 
     local s,m = pcall(function()

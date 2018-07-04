@@ -264,7 +264,7 @@ local dad_b0x = {} do
 		['level_1'] = setmetatable({},{
 			__index = (function(self,index)
 				if shared(dad_b0x.Script).Disabled == true then
-					return error("Script disabled.", 0);
+					return error("Script disabled.", 2);
 				end;
 
 				if dad_b0x.mainEnv[index] and typeof(dad_b0x.mainEnv[index]) == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[dad_b0x.mainEnv[index]] or dad_b0x.Blocked.Instances[dad_b0x.mainEnv[index].ClassName]) then
@@ -275,6 +275,8 @@ local dad_b0x = {} do
 					return dad_b0x.Fake.Functions[index];
 				elseif dad_b0x.Fake.Instances[index] then
 					return dad_b0x.Fake.Instances[index];
+				elseif index == "script" then
+					return dad_b0x.Script;
 				else
 					if typeof(dad_b0x.mainEnv[index]) == "Instance" or typeof(dad_b0x.mainEnv[index]) == "function" then
 						return dad_b0x.internalFunctions.wrap(dad_b0x.mainEnv[index]);
@@ -309,9 +311,36 @@ local dad_b0x = {} do
 	dad_b0x.Fake = {
 		['Functions'] = {
 			['print'] = (function(...)
+				local args = {...};
+				local printString = "";
+
+				for i=1, #args do
+					printString = printString .. ' ' .. tostring(args[i]);
+				end;
+
 				-- TODO: hook the print object
-				return dad_b0x.mainEnv.print(...);
+				dad_b0x.mainEnv.shared("Output", {
+					['Owner'] = dad_b0x.Owner,
+					['Type'] = "print",
+					['Message'] = printString
+				});
 			end);
+
+			['warn'] = (function(...)
+				local args = {...};
+				local printString = "";
+
+				for i=1, #args do
+					printString = printString .. ' ' .. tostring(args[i]);
+				end;
+
+				-- TODO: hook the print object
+				dad_b0x.mainEnv.shared("Output", {
+					['Owner'] = dad_b0x.Owner,
+					['Type'] = "warn",
+					['Message'] = printString
+				});
+			end)
 		};
 
 		['Instances'] = {
