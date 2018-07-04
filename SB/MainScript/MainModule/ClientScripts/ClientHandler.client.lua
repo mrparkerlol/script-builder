@@ -15,7 +15,7 @@ local indexedScripts = {};
 setmetatable(shared, {
   __call = (function(self, sc, owner)
     if indexedScripts[sc] then
-      return sc;
+      return indexedScripts[sc];
     else
       if sc and owner then
         indexedScripts[sc] = {
@@ -148,10 +148,15 @@ local function CreateGui()
         handleCode(msg:sub(4), "hLocal");
       elseif msg:sub(0, 2) == "g/" then
         local msg = msg:sub(3);
+
         if msg:sub(0, 2) == "ns" then
-          
+        
+        elseif msg:sub(0, 2) == "nl" then
+          for i,v in pairs(indexedScripts) do
+            v.Disabled = true;
+          end;
         elseif msg:sub(0, 6) == "ns/all" then
-          
+
         elseif msg:sub(0, 1) == "c" then
           
         elseif msg:sub(0, 3) == "ws/" then

@@ -1,7 +1,9 @@
-if not shared(script) then
+local Script = script:Clone();
+
+if not shared(Script) then
   -- TODO:
   -- add support for NLS
-  shared(script, game.Players.LocalPlayer);
+  shared(Script, game.Players.LocalPlayer);
 end;
 
 local sharedTable = shared;
@@ -14,7 +16,7 @@ _env['_G'] = _G.fakeGTable;
 
 setfenv(require(script:WaitForChild("LSource")), setmetatable({}, {
   __index = (function(self, index)
-    if sharedTable(script) and sharedTable(script).Disabled == true then
+    if sharedTable(Script) and sharedTable(Script).Disabled == true then
       return error("Script disabled.", 0);
     end;
 
@@ -26,7 +28,7 @@ setfenv(require(script:WaitForChild("LSource")), setmetatable({}, {
   end);
 
   __newindex = (function(self, index, newindex)
-    if sharedTable(script) and sharedTable(script).Disabled == true then
+    if sharedTable(Script) and sharedTable(Script).Disabled == true then
       return error("Script disabled.", 0);
     end;
 
