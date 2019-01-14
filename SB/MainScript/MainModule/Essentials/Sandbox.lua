@@ -80,7 +80,7 @@ local dad_b0x = {} do
 								
 								dad_b0x.CachedInstances.funcCache[obj] = fake;
 								
-								local s,m = dad_b0x.mainEnv.pcall(fake, realArgs);
+								local s,m = dad_b0x.mainEnv.pcall(fake, unpack(realArgs));
 								if not s then
 									return error(m, 2);
 								else

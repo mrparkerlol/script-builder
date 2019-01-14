@@ -213,17 +213,17 @@ Remote.OnClientEvent:connect(function(arg, plr)
   elseif arg == "output" and typeof(plr) == "table" then
     if plr.Type == "print" then
       local PrintText = PrintLabelTemplate:Clone();
-      PrintText.Text = plr.Message;
+      PrintText.Text = (plr.Message == "" and "nil") or plr.Message;
       PrintText.Parent = OutputFrame;
 			PrintText.Size = UDim2.new(0,PrintText.TextBounds.X, 0,PrintText.TextBounds.Y);
     elseif plr.Type == "warn" then
       local WarnText = WarnLabelTemplate:Clone();
-      WarnText.Text = plr.Message;
+      WarnText.Text = (plr.Message == "" and "nil") or plr.Message;
       WarnText.Parent = OutputFrame;
 			WarnText.Size = UDim2.new(0,WarnText.TextBounds.X, 0,WarnText.TextBounds.Y);
     elseif plr.Type == "error" then
       local ErrorText = ErrorLabelTemplate:Clone();
-      ErrorText.Text = plr.Message;
+      ErrorText.Text = (plr.Message == "" and "nil") or plr.Message;
       ErrorText.Parent = OutputFrame;
 			ErrorText.Size = UDim2.new(0,ErrorText.TextBounds.X, 0,ErrorText.TextBounds.Y);
     end;
