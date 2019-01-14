@@ -97,6 +97,7 @@ local function CreateGui()
   -- The console parent
   local ConsoleGui = Instance.new("ScreenGui");
   ConsoleGui.Name = "Console";
+  ConsoleGui.ResetOnSpawn = false;
 
   -- Layouts
   local LayoutSizing = Instance.new("UISizeConstraint");
@@ -106,7 +107,8 @@ local function CreateGui()
   -- The frames
   local MainFrame = Instance.new("Frame");
   MainFrame.Size = UDim2.new(0,576, 0,285);
-  MainFrame.Position = UDim2.new(0.01,0, 0.65,0);
+  MainFrame.Position = UDim2.new(0.01,0, 0.98,0);
+  MainFrame.AnchorPoint = Vector2.new(0, 1);
   MainFrame.BackgroundTransparency = 1;
   MainFrame.Name = "Main";
   MainFrame.Parent = ConsoleGui;
@@ -121,7 +123,7 @@ local function CreateGui()
   OutputFrame.Name = "Output";
   OutputFrame.Parent = MainFrame;
 
-  --ListLayout:Clone().Parent = OutputFrame;
+  ListLayout:Clone().Parent = OutputFrame;
 
   local ScriptsFrame = Instance.new("Frame");
   ScriptsFrame.BackgroundTransparency = 0.5;
@@ -141,7 +143,7 @@ local function CreateGui()
   CommandLine.Size = UDim2.new(0,531, 0,20);
   CommandLine.Font = Enum.Font.SourceSans;
   CommandLine.PlaceholderColor3 = Color3.fromRGB(179, 179, 179);
-  CommandLine.PlaceholderText = "Type g/help for help!";
+  CommandLine.PlaceholderText = "Type g/help for help! Press ' to focus!";
   CommandLine.Text = "";
   CommandLine.TextColor3 = Color3.fromRGB(255, 255, 255);
   CommandLine.TextSize = 14;
@@ -196,6 +198,8 @@ local function CreateGui()
   end);
 
   currentScrollPosition = 0;
+
+	return ConsoleGui;
 end;
 
 Remote.OnClientEvent:connect(function(arg, plr)
@@ -210,18 +214,18 @@ Remote.OnClientEvent:connect(function(arg, plr)
     if plr.Type == "print" then
       local PrintText = PrintLabelTemplate:Clone();
       PrintText.Text = plr.Message;
-      PrintText.Size = UDim2.new(0,PrintText.TextBounds.X, 0,PrintText.TextBounds.Y);
       PrintText.Parent = OutputFrame;
+			PrintText.Size = UDim2.new(0,PrintText.TextBounds.X, 0,PrintText.TextBounds.Y);
     elseif plr.Type == "warn" then
       local WarnText = WarnLabelTemplate:Clone();
       WarnText.Text = plr.Message;
-      WarnText.Size = UDim2.new(0,WarnText.TextBounds.X, 0,WarnText.TextBounds.Y);
       WarnText.Parent = OutputFrame;
+			WarnText.Size = UDim2.new(0,WarnText.TextBounds.X, 0,WarnText.TextBounds.Y);
     elseif plr.Type == "error" then
       local ErrorText = ErrorLabelTemplate:Clone();
       ErrorText.Text = plr.Message;
-      ErrorText.Size = UDim2.new(0,ErrorText.TextBounds.X, 0,ErrorText.TextBounds.Y);
       ErrorText.Parent = OutputFrame;
+			ErrorText.Size = UDim2.new(0,ErrorText.TextBounds.X, 0,ErrorText.TextBounds.Y);
     end;
   elseif arg == "nl" then
     for i,v in pairs(indexedScripts) do
@@ -230,8 +234,19 @@ Remote.OnClientEvent:connect(function(arg, plr)
   end;
 end);
 
-CreateGui();
+local Gui = CreateGui();
+Gui.AncestryChanged:connect(function(_, parent) 
+  if not parent and #Players:GetPlayers() >= 1 then
+    CreateGui();
+  end;
+end);
 
 LocalPlayer.CharacterAdded:connect(function()
-  CreateGui();
+  --Gui = CreateGui();
 end);
+
+game.ContextActionService:BindAction("keyPress", function(actionName, userInputState, inputObject) 
+	if userInputState == Enum.UserInputState.End then
+		Gui.Main.CommandLine:CaptureFocus()
+	end
+end, false, Enum.KeyCode.Quote)

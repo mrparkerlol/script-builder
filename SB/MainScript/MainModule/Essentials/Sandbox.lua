@@ -69,13 +69,13 @@ local dad_b0x = {} do
 						local realArgs = dad_b0x.internalFunctions.getReal({...});
 						
 						if dad_b0x.Fake.ProtectedFunctions[obj] then
-							return dad_b0x.Fake.ProtectedFunctions[m];
+							return dad_b0x.Fake.ProtectedFunctions[obj];
 						end;
 						
 						if realArgs ~= nil and (typeof(realArgs) == "table" and #realArgs > 0) then
 							if lIndex ~= nil and dad_b0x.Fake.Methods[lIndex] then
 								local fake = (function(...)
-									return dad_b0x.Fake.Methods[lIndex](realArgs);
+									return dad_b0x.Fake.Methods[lIndex](...);
 								end);
 								
 								dad_b0x.CachedInstances.funcCache[obj] = fake;
@@ -96,7 +96,7 @@ local dad_b0x = {} do
 								end);
 								
 								dad_b0x.CachedInstances.funcCache[obj] = fake;
-								
+
 								local s,m = dad_b0x.mainEnv.pcall(fake, ...);
 								if not s then
 									return error(m, 2);
@@ -147,7 +147,7 @@ local dad_b0x = {} do
 								else
 									for i=0, #msg do
 										if dad_b0x.Fake.ProtectedInstances[msg[i]] then
-											msg[i] = dad_b0x.internalFunctions.wrap(m[i]);
+											msg[i] = dad_b0x.internalFunctions.wrap(msg[i]);
 										elseif dad_b0x.Blocked.Instances[msg[i]] then
 											table.remove(msg, i);
 										end;
@@ -168,9 +168,7 @@ local dad_b0x = {} do
 					dad_b0x.CachedInstances.funcCache[obj] = func;
 
 					return func;
-				end;
-
-				if typeof(obj) == "Instance" then
+				elseif typeof(obj) == "Instance" then
 					if dad_b0x.Blocked.Instances[obj] then
 						-- Object is supposed to be hidden, return nil
 						-- to hide its existence
@@ -203,8 +201,17 @@ local dad_b0x = {} do
 							
 							-- __newindex
 							meta.__newindex = (function(self, index, newindex)
+								local Index, newIndex = index, newindex;
+								if typeof(newIndex) == "userdata" then
+									newIndex = dad_b0x.internalFunctions.getReal(newIndex);
+								end;
+
+								if typeof(Index) == "userdata" then
+									Index = dad_b0x.internalFunctions.getReal(Index);
+								end;
+
 								local s,m = pcall(function()
-									obj[index] = newindex;
+									obj[Index] = newIndex;
 								end);
 
 								if not s then
@@ -224,14 +231,27 @@ local dad_b0x = {} do
 							-- https://github.com/mrteenageparker/sb-in-a-require/commit/ccf19a82b1d5c95864b8993da5e6e05cdcf52c39
 							return proxy;
 						end;
-					end
+					end;
+				elseif typeof(obj) == "table" then
+					local tbl = {};
+					
+					for i,v in pairs(obj) do
+						tbl[i] = dad_b0x.internalFunctions.wrap(v);
+					end;
+					
+					dad_b0x.CachedInstances.fake[obj] = tbl;
+					
+					return tbl;
+				else
+					return obj;
 				end;
-			end;
+			end;	
 		end);
 
 		['getReal'] = (function(obj)
 			if typeof(obj) == "table" then
 				local tbl = {};
+				
 				for i=1, #obj do
 					if dad_b0x.CachedInstances.real[obj[i]] then
 						table.insert(tbl, dad_b0x.CachedInstances.real[obj[i]]);
@@ -278,7 +298,8 @@ local dad_b0x = {} do
 				elseif index == "script" then
 					return dad_b0x.Script;
 				else
-					if typeof(dad_b0x.mainEnv[index]) == "Instance" or typeof(dad_b0x.mainEnv[index]) == "function" then
+					if typeof(dad_b0x.mainEnv[index]) == "Instance" or typeof(dad_b0x.mainEnv[index]) == "table" 
+							or typeof(dad_b0x.mainEnv[index]) == "function" then
 						return dad_b0x.internalFunctions.wrap(dad_b0x.mainEnv[index]);
 					end;
 
@@ -293,7 +314,7 @@ local dad_b0x = {} do
 	-- Blocked functions
 	dad_b0x.Blocked = {
 		['Instances'] = _G.protectedObjects;
-
+		
 		['Functions'] = {
 			['require'] = (function(...)
 					-- TODO: allow the user to whitelist specific modules
