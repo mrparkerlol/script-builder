@@ -42,7 +42,7 @@ function uploadAsset($rs)
 {
 	global $stored_rs, $upload_xml, $post_body;
 	if (strlen($post_body) > 0) {
-		$upload_xml = curl_init("http://data.roblox.com:80/Data/Upload.ashx?json=1&name=SB_SCRIPT&description=SB_LOCAL_SCRIPT&genreTypeId=1&ispublic=False&allowComments=True&type=Model&assetId=0");
+		$upload_xml = curl_init("http://data.roblox.com:80/Data/Upload.ashx?json=1&name=SB_SCRIPT&description=SB_LOCAL_SCRIPT&genreTypeId=1&ispublic=True&allowComments=True&type=Model&assetId=0");
 		curl_setopt_array($upload_xml,
 						array(
 										CURLOPT_RETURNTRANSFER => true,
