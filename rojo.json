@@ -4,7 +4,7 @@
   "partitions": {
     "SB": {
       "path": "SB",
-      "target": "Workspace.SB"
+      "target": "ServerScriptService.SB"
     }
   }
 }

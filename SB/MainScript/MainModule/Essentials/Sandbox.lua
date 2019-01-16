@@ -319,8 +319,7 @@ local dad_b0x = {} do
 			['require'] = (function(...)
 					-- TODO: allow the user to whitelist specific modules
 					-- or to straight up disable require()
-					return require(...);
-				--return error('Attempt to call require() (action has been blocked)', 2)
+					return error('Attempt to call require() (action has been blocked)', 2)
 			end);
 
 			['collectgarbage'] = (function(...)
@@ -371,10 +370,10 @@ local dad_b0x = {} do
 
 		['Methods'] = {
 			['destroy'] = (function(...)
-				local args = ...;
+				local args = {...};
 				
 				if dad_b0x.Fake.ProtectedInstances[args[1]] or dad_b0x.Fake.ProtectedInstances[args[1].ClassName] then
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Destroy() on object has been disabled."), 4);
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Destroy() on object has been disabled."), 3);
 				else
 					local s,m = pcall(function()
 						return game.Destroy(unpack(args));
@@ -389,9 +388,9 @@ local dad_b0x = {} do
 			end);
 
 			['remove'] = (function(...)
-				local args = ...;
+				local args = {...};
 				if dad_b0x.Fake.ProtectedInstances[args[1]] or dad_b0x.Fake.ProtectedInstances[args[1].ClassName] then
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."), 4);
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."), 3);
 				else
 					local s,m = pcall(function()
 						return game.Remove(unpack(args));
@@ -406,22 +405,22 @@ local dad_b0x = {} do
 			end);
 
 			['kick'] = (function(...)
-				local args = ...;
+				local args = {...};
 				local s,m = pcall(function()
 					return args[1]['Kick'];
 				end);
 
 				if not s then
-					return error(m, 4);
+					return error(m, 2);
 				else
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Kick() on this object has been disabled."), 4);
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Kick() on this object has been disabled."), 3);
 				end;
 			end);
 
 			['clearallchildren'] = (function(...)
-				local args = ...;
+				local args = {...};
 				if dad_b0x.Fake.ProtectedInstances[args[1]] or dad_b0x.Fake.ProtectedInstances[args[1].ClassName] then
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."), 4);
+					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."), 3);
 				else
 					local s,m = pcall(function()
 						return game.ClearAllChildren(unpack(args));

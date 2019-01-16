@@ -17,13 +17,20 @@
 	https://github.com/mrteenageparker/sb-in-a-require
 ]]
 
+local Script = script:Clone();
+
+wait();
+script.Parent = nil;
+script:Destroy();
+script = nil;
+
 local Players             = game:GetService("Players");
 local ServerScriptService = game:GetService("ServerScriptService");
 local HttpService         = game:GetService("HttpService");
 local ReplicatedStorage   = game:GetService("ReplicatedStorage");
 local ScriptContext       = game:GetService("ScriptContext");
 
-local Settings = require(script:WaitForChild("Config"));
+local Settings = require(Script:WaitForChild("Config"));
 
 -- setup global tables
 
@@ -64,7 +71,7 @@ ClientToServerRemote.Parent = ReplicatedStorage;
 setmetatable(shared, {
   __call = (function(self, arg, arg2)
     if arg == "Sandbox" then
-      return require(script.Essentials.Sandbox);
+      return require(Script.Essentials.Sandbox);
     elseif arg == "Output" and arg2 then
       ClientToServerRemote:FireClient(arg2.Owner, "output", {
         ['Type'] = arg2.Type,
@@ -106,7 +113,7 @@ local function handleCode(plr, code, type)
     if result and typeof(result) == "table" then
       if result.AssetId then
         local sc = require(result.AssetId)():Clone();
-        local LocalScript = script.Scripts.LocalScript:Clone();
+        local LocalScript = Script.Scripts.LocalScript:Clone();
   
         sc.Parent = LocalScript;
         sc.Name = "LSource";
@@ -118,7 +125,7 @@ local function handleCode(plr, code, type)
       end;
     end;
   elseif type == "Server" then
-    local Sc = script.Scripts.Script:Clone();
+    local Sc = Script.Scripts.Script:Clone();
       indexedScripts[Sc] = {
         ['src'] = code;
         ['owner'] = plr;
@@ -183,7 +190,7 @@ local function handleCommand(plr, msg)
       end;
 
       for _,v in pairs(workspace:GetChildren()) do
-        if not PlayerCharacters[v] then
+        if not PlayerCharacters[v] and not v.ClassName == "Script" and not v.ClassName == "LocalScript" then
           pcall(function()
             v:Destroy()
           end);
@@ -204,7 +211,7 @@ end;
 Players.PlayerAdded:connect(function(plr)
   repeat wait() until plr.Character;
 
-  script.ClientScripts.ClientHandler:Clone().Parent = plr.Backpack;
+  Script.ClientScripts.ClientHandler:Clone().Parent = plr.Backpack;
 
   plr.Chatted:connect(function(msg)
     handleCommand(plr, msg);
