@@ -49,12 +49,13 @@ local dad_b0x = {} do
 	-- Internalized functions
 	dad_b0x.internalFunctions = {
 		['wrap'] = (function(obj, lIndex)
-			if dad_b0x.CachedInstances.fake[obj] then
+			local cachedInstanceFake, cachedInstanceFuncCache = dad_b0x.CachedInstances.fake[obj], dad_b0x.CachedInstances.funcCache[obj];
+			if cachedInstanceFake then
 				-- Object was previously sandboxed, return the already sanboxed version instead
-				return dad_b0x.CachedInstances.fake[obj];
-			elseif dad_b0x.CachedInstances.funcCache[obj] then
+				return cachedInstanceFake;
+			elseif cachedInstanceFuncCache then
 				-- Function was in the function cache
-				return dad_b0x.CachedInstances.funcCache[obj];
+				return cachedInstanceFuncCache;
 			else
 				if typeof(obj) == "function" then
 					local func = (function(...)
@@ -67,9 +68,9 @@ local dad_b0x = {} do
 						-- If all else checks out, it simply just
 						-- returns the function.
 						local realArgs = dad_b0x.internalFunctions.getReal({...});
-						
-						if dad_b0x.Fake.ProtectedFunctions[obj] then
-							return dad_b0x.Fake.ProtectedFunctions[obj];
+						local protectedFunctions = dad_b0x.Fake.ProtectedFunctions[obj];
+						if protectedFunctions then
+							return protectedFunctions;
 						end;
 						
 						if realArgs ~= nil and (typeof(realArgs) == "table" and #realArgs > 0) then
@@ -121,13 +122,15 @@ local dad_b0x = {} do
 									local tbl = {};
 									return setmetatable({}, {
 										__index = (function(self, index)
-											if typeof(dad_b0x.mainEnv[index]) == "Instance" or typeof(dad_b0x.mainEnv[index]) == "function" then
-												return dad_b0x.internalFunctions.wrap(dad_b0x.mainEnv[index]);
+											local index = dad_b0x.Environments.level_1[index];
+											local type = typeof(index);
+											if type == "Instance" or type == "function" then
+												return dad_b0x.internalFunctions.wrap(index);
 											else
 												if tbl[index] then
 													return tbl[index];
 												else
-													return dad_b0x.mainEnv[index];
+													return index;
 												end;
 											end;
 										end);
@@ -146,9 +149,10 @@ local dad_b0x = {} do
 									});
 								else
 									for i=0, #msg do
-										if dad_b0x.Fake.ProtectedInstances[msg[i]] then
-											msg[i] = dad_b0x.internalFunctions.wrap(msg[i]);
-										elseif dad_b0x.Blocked.Instances[msg[i]] then
+										local index = msg[i];
+										if dad_b0x.Fake.ProtectedInstances[index] then
+											msg[i] = dad_b0x.internalFunctions.wrap(index);
+										elseif dad_b0x.Blocked.Instances[index] then
 											table.remove(msg, i);
 										end;
 									end;
@@ -189,10 +193,11 @@ local dad_b0x = {} do
 								end);
 
 								if s then
-									if typeof(obj[index]) == "function" or typeof(obj[index]) == "Instance" then
-										return dad_b0x.internalFunctions.wrap(obj[index], lIndex);
+									local index = obj[index];
+									if typeof(index) == "function" or typeof(index) == "Instance" then
+										return dad_b0x.internalFunctions.wrap(index, lIndex);
 									else
-										return obj[index];
+										return index;
 									end;
 								else
 									return error(m, 2);
@@ -253,8 +258,9 @@ local dad_b0x = {} do
 				local tbl = {};
 				
 				for i=1, #obj do
-					if dad_b0x.CachedInstances.real[obj[i]] then
-						table.insert(tbl, dad_b0x.CachedInstances.real[obj[i]]);
+					local cachedInstance = dad_b0x.CachedInstances.real[obj[i]];
+					if cachedInstance then
+						table.insert(tbl, cachedInstance);
 					else
 						table.insert(tbl, obj[i]);
 					end;
@@ -270,8 +276,9 @@ local dad_b0x = {} do
 		-- errors according to class name
 		['handleObjectClassErrorString'] = (function(obj, defaultMessage)
 			-- It is recognized as a type to specifically apply a message to
-			if dad_b0x.Fake.PotentialClassErrors[obj.ClassName] then
-				return dad_b0x.Fake.PotentialClassErrors[obj.ClassName];
+			local classError = dad_b0x.Fake.PotentialClassErrors[obj.ClassName];
+			if classError then
+				return classError;
 			else
 				-- No index, return the default error that was passed
 				return defaultMessage;
@@ -282,12 +289,14 @@ local dad_b0x = {} do
 	-- Environments
 	dad_b0x.Environments = {
 		['level_1'] = setmetatable({},{
-			__index = (function(self,index)
+			__index = (function(self, index)
 				if shared(dad_b0x.Script).Disabled == true then
 					return error("Script disabled.", 2);
 				end;
 
-				if dad_b0x.mainEnv[index] and typeof(dad_b0x.mainEnv[index]) == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[dad_b0x.mainEnv[index]] or dad_b0x.Blocked.Instances[dad_b0x.mainEnv[index].ClassName]) then
+				local mainEnvObj = dad_b0x.mainEnv[index];
+				if mainEnvObj and typeof(mainEnvObj) == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[mainEnvObj] 
+						or dad_b0x.Blocked.Instances[mainEnvObj.ClassName]) then
 					return nil;
 				elseif dad_b0x.Blocked.Functions[index] then
 					return dad_b0x.Blocked.Functions[index];
@@ -297,13 +306,14 @@ local dad_b0x = {} do
 					return dad_b0x.Fake.Instances[index];
 				elseif index == "script" then
 					return dad_b0x.Script;
+				elseif index == "owner" then
+					return dad_b0x.Owner;
 				else
-					if typeof(dad_b0x.mainEnv[index]) == "Instance" or typeof(dad_b0x.mainEnv[index]) == "table" 
-							or typeof(dad_b0x.mainEnv[index]) == "function" then
-						return dad_b0x.internalFunctions.wrap(dad_b0x.mainEnv[index]);
+					if typeof(mainEnvObj) == "Instance" or typeof(mainEnvObj) == "table" or typeof(mainEnvObj) == "function" then
+						return dad_b0x.internalFunctions.wrap(mainEnvObj);
 					end;
 
-					return dad_b0x.mainEnv[index];
+					return mainEnvObj;
 				end;
 			end);
 
@@ -334,8 +344,12 @@ local dad_b0x = {} do
 				local args = {...};
 				local printString = "";
 
-				for i=1, #args do
-					printString = printString .. ' ' .. tostring(args[i]);
+				if #args == 1 then
+					printString = tostring(args[1]);
+				else
+					for i=1, #args do
+						printString = printString .. ' ' .. tostring(args[i]);
+					end;
 				end;
 
 				-- TODO: hook the print object
@@ -350,8 +364,12 @@ local dad_b0x = {} do
 				local args = {...};
 				local printString = "";
 
-				for i=1, #args do
-					printString = printString .. ' ' .. tostring(args[i]);
+				if #args == 1 then
+					printString = tostring(args[1]);
+				else
+					for i=1, #args do
+						printString = printString .. ' ' .. tostring(args[i]);
+					end;
 				end;
 
 				-- TODO: hook the print object

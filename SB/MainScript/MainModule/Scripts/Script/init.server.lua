@@ -1,7 +1,7 @@
 repeat wait() until getmetatable(shared);
 
 local config = shared(script);
-local sandbox = shared('Sandbox')(config.owner, script);
+local sandbox = require(shared('Sandbox'))(config.owner, script);
 
 local function exec(src)
 	local s,m = loadstring(src, 'SB-Script');
