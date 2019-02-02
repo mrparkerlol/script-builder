@@ -82,11 +82,7 @@ local dad_b0x = {} do
 								dad_b0x.CachedInstances.funcCache[obj] = fake;
 								
 								local s,m = dad_b0x.mainEnv.pcall(fake, unpack(realArgs));
-								if not s then
-									return error(m, 2);
-								else
-									return m;
-								end;
+								return (s and m) or error(m, 2);
 							else
 								succ, msg = dad_b0x.mainEnv.pcall(obj, unpack(realArgs));
 							end;
@@ -99,11 +95,7 @@ local dad_b0x = {} do
 								dad_b0x.CachedInstances.funcCache[obj] = fake;
 
 								local s,m = dad_b0x.mainEnv.pcall(fake, ...);
-								if not s then
-									return error(m, 2);
-								else
-									return m;
-								end;
+								return (s and m) or error(m, 2);
 							else
 								succ, msg = dad_b0x.mainEnv.pcall(obj, ...);
 							end;
@@ -124,15 +116,7 @@ local dad_b0x = {} do
 										__index = (function(self, index)
 											local index = dad_b0x.Environments.level_1[index];
 											local type = typeof(index);
-											if type == "Instance" or type == "function" then
-												return dad_b0x.internalFunctions.wrap(index);
-											else
-												if tbl[index] then
-													return tbl[index];
-												else
-													return index;
-												end;
-											end;
+											return (type == "Instance" or type == "function") and dad_b0x.internalFunctions.wrap(index) or (tbl[index] or index);
 										end);
 
 										__newindex = (function(self, index, newindex)
@@ -181,40 +165,33 @@ local dad_b0x = {} do
 						-- Get a empty userdata
 						local proxy = newproxy(true);
 						local meta = getmetatable(proxy) do
-							meta.__metatable = getmetatable(game);
-							meta.__tostring = (function(self) return tostring(obj) end);
+							meta.__metatable = getmetatable(obj);
+							meta.__tostring = (function(self) return tostring(obj); end);
 							
 							-- __index
 							meta.__index = (function(self, index)
-								local lIndex = string.lower(index);
+								local lIndex = index:lower();
 								
 								local s, m = pcall(function()
 									return obj[index];
 								end);
 
 								if s then
-									local index = obj[index];
-									if typeof(index) == "function" or typeof(index) == "Instance" then
-										return dad_b0x.internalFunctions.wrap(index, lIndex);
-									else
-										return index;
-									end;
+									local index= obj[index];
+									local type = typeof(index);
+									return (type == "function" or type == "Instance") and dad_b0x.internalFunctions.wrap(index, lIndex) or index;
 								else
 									error(m);
 								end;
 							end);
 							
 							-- __newindex
+							-- with some help from MasterKelvinVIP based on some
+							-- code from his sandbox.
+							-- (includes SetMember function)
 							meta.__newindex = (function(self, index, newindex)
-								local Index, newIndex = (typeof(Index) == "userdata" and dad_b0x.internalFunctions.getReal(Index)), 
-																				(typeof(newIndex) == "userdata" and dad_b0x.internalFunctions.getReal(newIndex));
-								local s,m = pcall(function()
-									obj[Index] = newIndex;
-								end);
-
-								if not s then
-									error(m);
-								end;
+								local Success, Result = pcall(dad_b0x.internalFunctions.SetMember, obj, index, dad_b0x.internalFunctions.getReal(value))
+								return Success or error(Result, 2);
 							end);
 
 							-- Optimize future returns by
@@ -232,9 +209,8 @@ local dad_b0x = {} do
 					end;
 				elseif typeof(obj) == "table" then
 					local tbl = {};
-					
-					for i,v in pairs(obj) do
-						tbl[i] = dad_b0x.internalFunctions.wrap(v);
+					for i=1, #obj do
+						tbl[i] = dad_b0x.internalFunctions.wrap(obj[i]);
 					end;
 					
 					dad_b0x.CachedInstances.fake[obj] = tbl;
@@ -249,14 +225,8 @@ local dad_b0x = {} do
 		['getReal'] = (function(obj)
 			if typeof(obj) == "table" then
 				local tbl = {};
-				
 				for i=1, #obj do
-					local cachedInstance = dad_b0x.CachedInstances.real[obj[i]];
-					if cachedInstance then
-						table.insert(tbl, cachedInstance);
-					else
-						table.insert(tbl, obj[i]);
-					end;
+					tbl[#tbl + 1] = dad_b0x.CachedInstances.real[obj[i]] or obj[i];
 				end;
 
 				return tbl;
@@ -268,15 +238,12 @@ local dad_b0x = {} do
 		-- Our general error handler to return
 		-- errors according to class name
 		['handleObjectClassErrorString'] = (function(obj, defaultMessage)
-			-- It is recognized as a type to specifically apply a message to
-			local classError = dad_b0x.Fake.PotentialClassErrors[obj.ClassName];
-			if classError then
-				return classError;
-			else
-				-- No index, return the default error that was passed
-				return defaultMessage;
-			end;
+			return dad_b0x.Fake.PotentialClassErrors[obj.ClassName] or defaultMessage;
 		end);
+
+		['SetMember'] = function(Table, Index, Value)
+			Table[Index] = Value
+		end
 	};
 
 	-- Environments
@@ -290,21 +257,14 @@ local dad_b0x = {} do
 				if index == "owner" then return dad_b0x.Owner; elseif index == "script" then return dad_b0x.Script; end;
 
 				local mainEnvObj = dad_b0x.mainEnv[index];
-				if mainEnvObj and typeof(mainEnvObj) == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[mainEnvObj] 
+				local type = typeof(mainEnvObj);
+				if mainEnvObj and type == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[mainEnvObj] 
 						or dad_b0x.Blocked.Instances[mainEnvObj.ClassName]) then
 					return nil;
-				elseif dad_b0x.Blocked.Functions[index] then
-					return dad_b0x.Blocked.Functions[index];
-				elseif dad_b0x.Fake.Functions[index] then
-					return dad_b0x.Fake.Functions[index];
-				elseif dad_b0x.Fake.Instances[index] then
-					return dad_b0x.Fake.Instances[index];
 				else
-					if typeof(mainEnvObj) == "Instance" or typeof(mainEnvObj) == "table" or typeof(mainEnvObj) == "function" then
-						return dad_b0x.internalFunctions.wrap(mainEnvObj);
-					end;
-
-					return mainEnvObj;
+					return dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index] or dad_b0x.Fake.Instances[index] 
+									or (type == "Instance" or type == "table" or type == "function") and dad_b0x.internalFunctions.wrap(mainEnvObj)
+									 or mainEnvObj;
 				end;
 			end);
 
