@@ -41,8 +41,8 @@ local dad_b0x = {} do
 
 	-- Optimization for returning already wrapped objects
 	dad_b0x.CachedInstances = {
-		['real'] = {};
-		['fake'] = {};
+		['real'] = setmetatable({}, {__mode = "k"});
+		['fake'] = setmetatable({}, {__mode = "k"});
 		['funcCache'] = {};
 	};
 
@@ -141,7 +141,7 @@ local dad_b0x = {} do
 											end);
 
 											if not s then
-												return error(m, 2);
+												error(m);
 											end;
 										end);
 
@@ -200,27 +200,20 @@ local dad_b0x = {} do
 										return index;
 									end;
 								else
-									return error(m, 2);
+									error(m);
 								end;
 							end);
 							
 							-- __newindex
 							meta.__newindex = (function(self, index, newindex)
-								local Index, newIndex = index, newindex;
-								if typeof(newIndex) == "userdata" then
-									newIndex = dad_b0x.internalFunctions.getReal(newIndex);
-								end;
-
-								if typeof(Index) == "userdata" then
-									Index = dad_b0x.internalFunctions.getReal(Index);
-								end;
-
+								local Index, newIndex = (typeof(Index) == "userdata" and dad_b0x.internalFunctions.getReal(Index)), 
+																				(typeof(newIndex) == "userdata" and dad_b0x.internalFunctions.getReal(newIndex));
 								local s,m = pcall(function()
 									obj[Index] = newIndex;
 								end);
 
 								if not s then
-									return error(m, 2);
+									error(m);
 								end;
 							end);
 
@@ -268,7 +261,7 @@ local dad_b0x = {} do
 
 				return tbl;
 			else
-				return dad_b0x.CachedInstances.real[obj];
+				return dad_b0x.CachedInstances.real[obj] or obj;
 			end;
 		end);
 
@@ -288,11 +281,13 @@ local dad_b0x = {} do
 
 	-- Environments
 	dad_b0x.Environments = {
-		['level_1'] = setmetatable({},{
+		['level_1'] = setmetatable({}, {
 			__index = (function(self, index)
 				if shared(dad_b0x.Script).Disabled == true then
-					return error("Script disabled.", 2);
+					error("Script disabled.");
 				end;
+
+				if index == "owner" then return dad_b0x.Owner; elseif index == "script" then return dad_b0x.Script; end;
 
 				local mainEnvObj = dad_b0x.mainEnv[index];
 				if mainEnvObj and typeof(mainEnvObj) == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[mainEnvObj] 
@@ -304,10 +299,6 @@ local dad_b0x = {} do
 					return dad_b0x.Fake.Functions[index];
 				elseif dad_b0x.Fake.Instances[index] then
 					return dad_b0x.Fake.Instances[index];
-				elseif index == "script" then
-					return dad_b0x.Script;
-				elseif index == "owner" then
-					return dad_b0x.Owner;
 				else
 					if typeof(mainEnvObj) == "Instance" or typeof(mainEnvObj) == "table" or typeof(mainEnvObj) == "function" then
 						return dad_b0x.internalFunctions.wrap(mainEnvObj);
@@ -329,11 +320,11 @@ local dad_b0x = {} do
 			['require'] = (function(...)
 					-- TODO: allow the user to whitelist specific modules
 					-- or to straight up disable require()
-					return error('Attempt to call require() (action has been blocked)', 2)
+					error('Attempt to call require() (action has been blocked)')
 			end);
 
 			['collectgarbage'] = (function(...)
-				return error('Attempt to call collectgarbage() (action has been blocked)', 2);
+				error('Attempt to call collectgarbage() (action has been blocked)');
 			end);
 		};
 	};
@@ -391,14 +382,14 @@ local dad_b0x = {} do
 				local args = {...};
 				
 				if dad_b0x.Fake.ProtectedInstances[args[1]] or dad_b0x.Fake.ProtectedInstances[args[1].ClassName] then
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Destroy() on object has been disabled."), 3);
+					error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Destroy() on object has been disabled."));
 				else
 					local s,m = pcall(function()
-						return game.Destroy(unpack(args));
+						return (#args == 1 and args[1]:Destroy()) or game.Destroy(unpack(args));
 					end);
 
 					if not s then
-						return error(m, 4);
+						error(m);
 					else
 						return m;
 					end;
@@ -408,14 +399,14 @@ local dad_b0x = {} do
 			['remove'] = (function(...)
 				local args = {...};
 				if dad_b0x.Fake.ProtectedInstances[args[1]] or dad_b0x.Fake.ProtectedInstances[args[1].ClassName] then
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."), 3);
+					error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."));
 				else
 					local s,m = pcall(function()
-						return game.Remove(unpack(args));
+						return (#args == 1 and args[1]:Remove()) or game.Remove(unpack(args));
 					end);
 
 					if not s then
-						return error(m, 3);
+						error(m);
 					else
 						return m;
 					end;
@@ -429,23 +420,23 @@ local dad_b0x = {} do
 				end);
 
 				if not s then
-					return error(m, 2);
+					error(m);
 				else
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Kick() on this object has been disabled."), 3);
+					error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Kick() on this object has been disabled."));
 				end;
 			end);
 
 			['clearallchildren'] = (function(...)
 				local args = {...};
 				if dad_b0x.Fake.ProtectedInstances[args[1]] or dad_b0x.Fake.ProtectedInstances[args[1].ClassName] then
-					return error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."), 3);
+					error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."));
 				else
 					local s,m = pcall(function()
 						return game.ClearAllChildren(unpack(args));
 					end);
 
 					if not s then
-						return error(m, 4);
+						error(m);
 					else
 						return m;
 					end;

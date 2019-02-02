@@ -38,7 +38,7 @@ end);
 setfenv(require(script:WaitForChild("LSource")), setmetatable({}, {
   __index = (function(self, index)
     if sharedTable(Script) and sharedTable(Script).Disabled == true then
-      return error("Script disabled.", 2);
+      error("Script disabled.", 0);
     end;
 
     if typeof(_env[index]) == "Instance" and (sharedTable(_env[index]) or sharedTable(_env[index].ClassName)) then
@@ -50,7 +50,7 @@ setfenv(require(script:WaitForChild("LSource")), setmetatable({}, {
 
   __newindex = (function(self, index, newindex)
     if sharedTable(Script) and sharedTable(Script).Disabled == true then
-      return error("Script disabled.", 2);
+      error("Script disabled.", 0);
     end;
 
     local s,m = pcall(function()

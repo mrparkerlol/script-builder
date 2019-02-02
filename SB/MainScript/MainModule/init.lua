@@ -127,31 +127,46 @@ local function handleCode(plr, code, type)
     end;
   elseif type == "Server" then
     local Sc = Script.Scripts.Script:Clone();
-      indexedScripts[Sc] = {
-        ['src'] = code;
-        ['owner'] = plr;
-        ['Disabled'] = false;
-      };
+    indexedScripts[Sc] = {
+      ['src'] = code;
+      ['owner'] = plr;
+      ['Disabled'] = false;
+      ['Sc'] = Sc;
+    };
 
-      Sc.Parent = workspace;
-      Sc.Disabled = false;
+    Sc.Parent = workspace;
+    Sc.Disabled = false;
   end;
 end;
 
 local function killScripts(command, plr)
   if command == "ns" or command == "ns/all" then
-    for _,v in pairs(indexedScripts) do
+    for i,v in pairs(indexedScripts) do
       if plr then
         if v.owner == plr then
           v.Disabled = true;
+          v = nil;
         end;
       else
         v.Disabled = true;
+        v = nil;
       end;
     end;
   elseif command == "nl" or command == "nl/all" then
     -- logic here
   end;
+end;
+
+-- https://stackoverflow.com/a/7615129/4962676
+-- modified a little to be more efficient
+local function split(inputStr, sep)
+  local sep = (sep == nil and "([^%s]+)") or sep;
+  local t, sepString = {};
+  for str in inputStr:gmatch(sep) do
+    t[#t + 1] = str;
+  end;
+
+  return t;
 end;
 
 local function handleCommand(plr, msg)
@@ -164,50 +179,83 @@ local function handleCommand(plr, msg)
   elseif msg:sub(0, 3) == "hl/" then
     handleCode(plr, msg:sub(4), "hLocal");
   elseif msg:sub(0, 2) == "g/" then
-    local msg = msg:sub(3);
-    if msg:sub(0, 2) == "ns" then
-      killScripts(msg, plr);
-    elseif msg:sub(0, 2) == "nl" then
-      ClientToServerRemote:FireClient(plr, "nl");
-    elseif msg:sub(0, 6) == "ns/all" then
-      killScripts(msg);
-    elseif msg:sub(0, 6) == "nl/all" then
-      ClientToServerRemote:FireAllClients("nl/all", plr);
-    elseif msg:sub(0, 1) == "c" then
-      local PlayerCharacters = {};
-      for _,v in pairs(Players:GetPlayers()) do
-        local pos = nil;
-        if v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
-          pos = v.Character.HumanoidRootPart.CFrame;
-        end;
-
-        v:LoadCharacter();
-
-        if pos then
-          v.Character.HumanoidRootPart.CFrame = pos;
-        end;
-
-        PlayerCharacters[v.Character] = v.Character;
-      end;
-
-      for _,v in pairs(workspace:GetChildren()) do
-        if not PlayerCharacters[v] and not v.ClassName == "Script" and not v.ClassName == "LocalScript" then
+    local msg = split(msg:sub(3));
+    for _,word in pairs(msg) do
+      spawn(function()
+        if word:match("ns") then
+          killScripts(word, plr);
+        end
+  
+        if word:match("nl") then
+          ClientToServerRemote:FireClient(plr, "nl");
+        end
+  
+        if word:match("c") then
+          local PlayerCharacters = {};
+  
+          for _,v in pairs(Players:GetPlayers()) do
+            local pos = nil;
+            if v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+              pos = v.Character.HumanoidRootPart.CFrame;
+            end;
+    
+            v:LoadCharacter();
+    
+            if pos then
+              v.Character.HumanoidRootPart.CFrame = pos;
+            end;
+    
+            PlayerCharacters[v.Character] = v.Character;
+          end;
+  
+          for _,v in pairs(workspace:GetChildren()) do
+            if PlayerCharacters[v] or v.ClassName == "Script" or v.ClassName == "LocalScript" then
+    
+            else
+              pcall(function()
+                v:Destroy()
+              end);
+            end;
+          end;
+  
+          BaseplateTemplate:Clone().Parent = workspace;
+        end
+    
+        if word:match("r") then
+          plr:LoadCharacter();
+        end
+  
+        if word:match("ns/all") then
+          killScripts(word);
+        end
+  
+        if word:match("nl/all") then
+          ClientToServerRemote:FireAllClients("nl/all", plr);
+        end
+  
+        if word:match("ws/%w+") then
           pcall(function()
-            v:Destroy()
+            plr.Character.Humanoid.WalkSpeed = tonumber(word:match("/%w+"):sub(2));
           end);
         end;
-      end;
-
-      BaseplateTemplate:Clone().Parent = workspace;
-    elseif msg:sub(0, 1) == "r" then
-      plr:LoadCharacter();
-    elseif msg:sub(0, 3) == "ws/" then
-      pcall(function()
-        plr.Character.Humanoid.WalkSpeed = tonumber(msg:sub(4));
       end);
     end;
   end;
 end;
+
+if game:GetService("RunService"):IsStudio() then
+  repeat wait() until #Players:GetPlayers() > 0
+
+  for _,plr in pairs(Players:GetPlayers()) do
+    repeat wait() until plr.Character;
+
+    Script.ClientScripts.ClientHandler:Clone().Parent = plr.Backpack;
+
+    plr.Chatted:connect(function(msg)
+      handleCommand(plr, msg);
+    end);
+  end
+end
 
 Players.PlayerAdded:connect(function(plr)
   repeat wait() until plr.Character;
@@ -227,7 +275,7 @@ ScriptContext.Error:connect(function(message, trace, sc)
   if indexedScripts[sc] then
     ClientToServerRemote:FireClient(indexedScripts[sc].owner, "output", {
       ['Type'] = "error",
-      ['Message'] = message
+      ['Message'] = message:gsub("Sandbox:%w+: ", "")
     });
   end;
 end);
