@@ -207,7 +207,7 @@ local dad_b0x = {} do
 					end;
 				elseif typeof(obj) == "table" then
 					local tbl = {};
-					for i=1, #obj do
+					for i,v in pairs(obj) do
 						tbl[i] = dad_b0x.internalFunctions.wrap(obj[i]);
 					end;
 					
