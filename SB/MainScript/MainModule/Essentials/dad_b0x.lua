@@ -396,7 +396,7 @@ local _env = setmetatable({}, {
 			return dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index] or dad_b0x.Fake.Instances[index];
 		else
 			if type == "Instance" or type == "table" or type == "function" then
-				return dad_b0x.internalFunctions.wrap(mainEnvObj);
+				return wrap(mainEnvObj);
 			end;
 
 			return mainEnvObj;
