@@ -21,6 +21,8 @@
 	https://github.com/mrteenageparker/sb-in-a-require
 ]]
 
+script = nil;
+
 -- Globals
 local dad_b0x = {} do
 	-- Environement
@@ -60,10 +62,6 @@ local dad_b0x = {} do
 				if typeof(obj) == "function" then
 					local func = (function(...)
 						local succ, msg;
-
-						-- Below portion fixes escaped
-						-- errors from occuring
-						-- outside the sandboxed code
 						
 						-- If all else checks out, it simply just
 						-- returns the function.
@@ -261,10 +259,14 @@ local dad_b0x = {} do
 				if mainEnvObj and type == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[mainEnvObj] 
 						or dad_b0x.Blocked.Instances[mainEnvObj.ClassName]) then
 					return nil;
+				elseif dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index] or dad_b0x.Fake.Instances[index] then
+					return dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index] or dad_b0x.Fake.Instances[index];
 				else
-					return dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index] or dad_b0x.Fake.Instances[index] 
-									or (type == "Instance" or type == "table" or type == "function") and dad_b0x.internalFunctions.wrap(mainEnvObj)
-									 or mainEnvObj;
+					if type == "Instance" or type == "table" or type == "function" then
+						return dad_b0x.internalFunctions.wrap(mainEnvObj);
+					end;
+
+					return mainEnvObj;
 				end;
 			end);
 
