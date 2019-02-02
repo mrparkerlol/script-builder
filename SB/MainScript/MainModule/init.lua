@@ -71,7 +71,7 @@ ClientToServerRemote.Parent = ReplicatedStorage;
 setmetatable(shared, {
   __call = (function(self, arg, arg2)
     if arg == "Sandbox" then
-      local Sandbox = Script.Essentials.Sandbox:Clone();
+      local Sandbox = Script.Essentials.dad_b0x:Clone();
       return Sandbox;
     elseif arg == "Output" and arg2 then
       ClientToServerRemote:FireClient(arg2.Owner, "output", {
