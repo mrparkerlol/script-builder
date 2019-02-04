@@ -420,13 +420,14 @@ local _env = setmetatable({}, {
 		if mainEnvObj and type == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[mainEnvObj] 
 				or dad_b0x.Blocked.Instances[mainEnvObj.ClassName]) then
 			return nil;
+		elseif dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index] or dad_b0x.Fake.Instances[index] then
+			return dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index] or dad_b0x.Fake.Instances[index]
 		else
 			if type == "Instance" or type == "table" or type == "function" then
 				return wrap(mainEnvObj);
 			end;
 
-			return dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index]
-							or dad_b0x.Fake.Instances[index] or mainEnvObj;
+			return mainEnvObj;
 		end;
 	end);
 
