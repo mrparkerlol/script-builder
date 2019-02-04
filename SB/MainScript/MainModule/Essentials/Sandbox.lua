@@ -48,232 +48,6 @@ local dad_b0x = {} do
 		['funcCache'] = {};
 	};
 
-	-- Internalized functions
-	dad_b0x.internalFunctions = {
-		['wrap'] = (function(obj, lIndex)
-			local cachedInstanceFake, cachedInstanceFuncCache = dad_b0x.CachedInstances.fake[obj], dad_b0x.CachedInstances.funcCache[obj];
-			if cachedInstanceFake then
-				-- Object was previously sandboxed, return the already sanboxed version instead
-				return cachedInstanceFake;
-			elseif cachedInstanceFuncCache then
-				-- Function was in the function cache
-				return cachedInstanceFuncCache;
-			else
-				if typeof(obj) == "function" then
-					local func = (function(...)
-						local succ, msg;
-						
-						-- If all else checks out, it simply just
-						-- returns the function.
-						local realArgs = dad_b0x.internalFunctions.getReal({...});
-						local protectedFunctions = dad_b0x.Fake.ProtectedFunctions[obj];
-						if protectedFunctions then
-							return protectedFunctions;
-						end;
-						
-						if realArgs ~= nil and (typeof(realArgs) == "table" and #realArgs > 0) then
-							if lIndex ~= nil and dad_b0x.Fake.Methods[lIndex] then
-								local fake = (function(...)
-									return dad_b0x.Fake.Methods[lIndex](...);
-								end);
-								
-								dad_b0x.CachedInstances.funcCache[obj] = fake;
-								
-								local s,m = dad_b0x.mainEnv.pcall(fake, unpack(realArgs));
-								return (s and m) or error(m, 2);
-							else
-								succ, msg = dad_b0x.mainEnv.pcall(obj, unpack(realArgs));
-							end;
-						else
-							if lIndex ~= nil and dad_b0x.Fake.Methods[lIndex] then
-								local fake = (function(...)
-									return dad_b0x.Fake.Methods[lIndex](...);
-								end);
-								
-								dad_b0x.CachedInstances.funcCache[obj] = fake;
-
-								local s,m = dad_b0x.mainEnv.pcall(fake, ...);
-								return (s and m) or error(m, 2);
-							else
-								succ, msg = dad_b0x.mainEnv.pcall(obj, ...);
-							end;
-						end;
-						
-						if not succ then
-							-- Error occured when calling method,
-							-- handle it accordingly
-							return error(msg, 2);
-						else
-							-- Successful execution - return the
-							-- output (if any), or sandbox
-							-- the return data
-							if typeof(msg) == "table" then
-								if getmetatable(msg) == "The metatable is locked" and msg['game'] == dad_b0x.mainEnv['game'] then
-									local tbl = {};
-									return setmetatable({}, {
-										__index = (function(self, index)
-											local index = dad_b0x.Environments.level_1[index];
-											local type = typeof(index);
-											return (type == "Instance" or type == "function") and dad_b0x.internalFunctions.wrap(index) or (tbl[index] or index);
-										end);
-
-										__newindex = (function(self, index, newindex)
-											local s,m = pcall(function()
-												tbl[index] = newindex;
-											end);
-
-											if not s then
-												error(m);
-											end;
-										end);
-
-										__metatable = getmetatable(game);
-									});
-								else
-									for i=0, #msg do
-										local index = msg[i];
-										if dad_b0x.Fake.ProtectedInstances[index] then
-											msg[i] = dad_b0x.internalFunctions.wrap(index);
-										elseif dad_b0x.Blocked.Instances[index] then
-											table.remove(msg, i);
-										end;
-									end;
-									
-									return msg;
-								end;
-							elseif typeof(msg) == "Instance" and (dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName]) then
-								return nil;
-							elseif typeof(msg) == "Instance" then
-								return dad_b0x.internalFunctions.wrap(msg);
-							else
-								return msg;
-							end;
-						end;
-					end);
-					
-					dad_b0x.CachedInstances.funcCache[obj] = func;
-
-					return func;
-				elseif typeof(obj) == "Instance" then
-					if dad_b0x.Blocked.Instances[obj] then
-						-- Object is supposed to be hidden, return nil
-						-- to hide its existence
-						return nil;
-					else
-						-- Get a empty userdata
-						local proxy = newproxy(true);
-						local meta = getmetatable(proxy) do
-							meta.__metatable = getmetatable(obj);
-							meta.__tostring = (function(self) return tostring(obj); end);
-							
-							-- __index
-							meta.__index = (function(self, index)
-								local lIndex = index:lower();
-								
-								local s, m = pcall(function()
-									return obj[index];
-								end);
-
-								if s then
-									local index= obj[index];
-									local type = typeof(index);
-									return (type == "function" or type == "Instance") and dad_b0x.internalFunctions.wrap(index, lIndex) or index;
-								else
-									error(m);
-								end;
-							end);
-							
-							-- __newindex
-							-- with some help from MasterKelvinVIP based on some
-							-- code from his sandbox.
-							-- (includes SetMember function)
-							meta.__newindex = (function(self, index, newindex)
-								local Success, Result = pcall(dad_b0x.internalFunctions.SetMember, obj, index, dad_b0x.internalFunctions.getReal(value))
-								return Success or error(Result, 2);
-							end);
-
-							-- Optimize future returns by
-							-- returning a cached result
-							-- rather than re-creating
-							-- the newproxy every single time
-							dad_b0x.CachedInstances.fake[obj]		= proxy;
-							dad_b0x.CachedInstances.real[proxy] = obj;
-
-							-- return the userdata rather than the metatable
-							-- see commit
-							-- https://github.com/mrteenageparker/sb-in-a-require/commit/ccf19a82b1d5c95864b8993da5e6e05cdcf52c39
-							return proxy;
-						end;
-					end;
-				elseif typeof(obj) == "table" then
-					local tbl = {};
-					for i,v in pairs(obj) do
-						tbl[i] = dad_b0x.internalFunctions.wrap(obj[i]);
-					end;
-					
-					dad_b0x.CachedInstances.fake[obj] = tbl;
-					
-					return tbl;
-				else
-					return obj;
-				end;
-			end;	
-		end);
-
-		['getReal'] = (function(obj)
-			if typeof(obj) == "table" then
-				local tbl = {};
-				for i=1, #obj do
-					tbl[#tbl + 1] = dad_b0x.CachedInstances.real[obj[i]] or obj[i];
-				end;
-
-				return tbl;
-			else
-				return dad_b0x.CachedInstances.real[obj] or obj;
-			end;
-		end);
-
-		-- Our general error handler to return
-		-- errors according to class name
-		['handleObjectClassErrorString'] = (function(obj, defaultMessage)
-			return dad_b0x.Fake.PotentialClassErrors[obj.ClassName] or defaultMessage;
-		end);
-
-		['SetMember'] = function(Table, Index, Value)
-			Table[Index] = Value
-		end
-	};
-
-	-- Environments
-	dad_b0x.Environments = {
-		['level_1'] = setmetatable({}, {
-			__index = (function(self, index)
-				if shared(dad_b0x.Script).Disabled == true then
-					error("Script disabled.");
-				end;
-
-				if index == "owner" then return dad_b0x.Owner; elseif index == "script" then return dad_b0x.Script; end;
-
-				local mainEnvObj = dad_b0x.mainEnv[index];
-				local type = typeof(mainEnvObj);
-				if mainEnvObj and type == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[mainEnvObj] 
-						or dad_b0x.Blocked.Instances[mainEnvObj.ClassName]) then
-					return nil;
-				elseif dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index] or dad_b0x.Fake.Instances[index] then
-					return dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index] or dad_b0x.Fake.Instances[index];
-				else
-					if type == "Instance" or type == "table" or type == "function" then
-						return dad_b0x.internalFunctions.wrap(mainEnvObj);
-					end;
-
-					return mainEnvObj;
-				end;
-			end);
-
-			__metatable = 'Locked. (level_1)';
-		}),
-	};
-
 	-- Blocked functions
 	dad_b0x.Blocked = {
 		['Instances'] = _G.protectedObjects;
@@ -344,7 +118,7 @@ local dad_b0x = {} do
 				local args = {...};
 				
 				if dad_b0x.Fake.ProtectedInstances[args[1]] or dad_b0x.Fake.ProtectedInstances[args[1].ClassName] then
-					error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Destroy() on object has been disabled."));
+					error(handleObjectClassErrorString(args[1], ":Destroy() on object has been disabled."));
 				else
 					local s,m = pcall(function()
 						return (#args == 1 and args[1]:Destroy()) or game.Destroy(unpack(args));
@@ -361,7 +135,7 @@ local dad_b0x = {} do
 			['remove'] = (function(...)
 				local args = {...};
 				if dad_b0x.Fake.ProtectedInstances[args[1]] or dad_b0x.Fake.ProtectedInstances[args[1].ClassName] then
-					error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."));
+					error(handleObjectClassErrorString(args[1], ":Remove() on this object has been disabled."));
 				else
 					local s,m = pcall(function()
 						return (#args == 1 and args[1]:Remove()) or game.Remove(unpack(args));
@@ -384,14 +158,14 @@ local dad_b0x = {} do
 				if not s then
 					error(m);
 				else
-					error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":Kick() on this object has been disabled."));
+					error(handleObjectClassErrorString(args[1], ":Kick() on this object has been disabled."));
 				end;
 			end);
 
 			['clearallchildren'] = (function(...)
 				local args = {...};
 				if dad_b0x.Fake.ProtectedInstances[args[1]] or dad_b0x.Fake.ProtectedInstances[args[1].ClassName] then
-					error(dad_b0x.internalFunctions.handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."));
+					error(handleObjectClassErrorString(args[1], ":ClearAllChildren() on object has been blocked."));
 				else
 					local s,m = pcall(function()
 						return game.ClearAllChildren(unpack(args));
@@ -438,10 +212,231 @@ local dad_b0x = {} do
 	};
 end;
 
+local function setMember(Table, Index, Value)
+	Table[Index] = Value;
+end;
+
+local function handleObjectClassErrorString(obj, defaultMessage)
+	return dad_b0x.Fake.PotentialClassErrors[obj.ClassName] or defaultMessage;
+end;
+
+local function getReal(obj)
+	if typeof(obj) == "table" then
+		local tbl = {};
+		for i=1, #obj do
+			tbl[#tbl + 1] = dad_b0x.CachedInstances.real[obj[i]] or obj[i];
+		end;
+
+		return tbl;
+	else
+		return dad_b0x.CachedInstances.real[obj] or obj;
+	end;
+end;
+
+local function wrap(obj, lIndex)
+	local cachedInstanceFake, cachedInstanceFuncCache = dad_b0x.CachedInstances.fake[obj], dad_b0x.CachedInstances.funcCache[obj];
+	if cachedInstanceFake then
+		-- Object was previously sandboxed, return the already sanboxed version instead
+		return cachedInstanceFake;
+	elseif cachedInstanceFuncCache then
+		-- Function was in the function cache
+		return cachedInstanceFuncCache;
+	else
+		if typeof(obj) == "function" then
+			local func = (function(...)
+				local succ, msg;
+				
+				-- If all else checks out, it simply just
+				-- returns the function.
+				local realArgs = getReal({...});
+				local protectedFunctions = dad_b0x.Fake.ProtectedFunctions[obj];
+				if protectedFunctions then
+					return protectedFunctions;
+				end;
+				
+				if realArgs ~= nil and (typeof(realArgs) == "table" and #realArgs > 0) then
+					if lIndex ~= nil and dad_b0x.Fake.Methods[lIndex] then
+						local fake = (function(...)
+							return dad_b0x.Fake.Methods[lIndex](...);
+						end);
+						
+						dad_b0x.CachedInstances.funcCache[obj] = fake;
+						
+						local s,m = dad_b0x.mainEnv.pcall(fake, unpack(realArgs));
+						return (s and m) or error(m, 2);
+					else
+						succ, msg = dad_b0x.mainEnv.pcall(obj, unpack(realArgs));
+					end;
+				else
+					if lIndex ~= nil and dad_b0x.Fake.Methods[lIndex] then
+						local fake = (function(...)
+							return dad_b0x.Fake.Methods[lIndex](...);
+						end);
+						
+						dad_b0x.CachedInstances.funcCache[obj] = fake;
+
+						local s,m = dad_b0x.mainEnv.pcall(fake, ...);
+						return (s and m) or error(m, 2);
+					else
+						if ... == nil or #{...} == 0 then
+							succ, msg = dad_b0x.mainEnv.pcall(obj);
+						else
+							succ, msg = dad_b0x.mainEnv.pcall(obj, ...);
+						end;
+					end;
+				end;
+				
+				if not succ then
+					-- Error occured when calling method,
+					-- handle it accordingly
+					return error(msg, 2);
+				else
+					-- Successful execution - return the
+					-- output (if any), or sandbox
+					-- the return data
+					if typeof(msg) == "table" then
+						if getmetatable(msg) == "The metatable is locked" and msg['game'] == dad_b0x.mainEnv['game'] then
+							local tbl = {};
+							return setmetatable({}, {
+								__index = (function(self, index)
+									local index = _env[index];
+									local type = typeof(index);
+									return (type == "Instance" or type == "function") and wrap(index) or (tbl[index] or index);
+								end);
+
+								__newindex = (function(self, index, newindex)
+									local s,m = pcall(function()
+										tbl[index] = newindex;
+									end);
+
+									if not s then
+										error(m);
+									end;
+								end);
+
+								__metatable = getmetatable(game);
+							});
+						else
+							for i=0, #msg do
+								local index = msg[i];
+								if dad_b0x.Fake.ProtectedInstances[index] then
+									msg[i] = wrap(index);
+								elseif dad_b0x.Blocked.Instances[index] then
+									table.remove(msg, i);
+								end;
+							end;
+							
+							return msg;
+						end;
+					elseif typeof(msg) == "Instance" and (dad_b0x.Blocked.Instances[msg] or dad_b0x.Blocked.Instances[msg.ClassName]) then
+						return nil;
+					elseif typeof(msg) == "Instance" then
+						return wrap(msg);
+					else
+						return msg;
+					end;
+				end;
+			end);
+			
+			dad_b0x.CachedInstances.funcCache[obj] = func;
+
+			return func;
+		elseif typeof(obj) == "Instance" then
+			if dad_b0x.Blocked.Instances[obj] then
+				-- Object is supposed to be hidden, return nil
+				-- to hide its existence
+				return nil;
+			else
+				-- Get a empty userdata
+				local proxy = newproxy(true);
+				local meta = getmetatable(proxy) do
+					meta.__metatable = getmetatable(obj);
+					meta.__tostring = (function(self) return tostring(obj); end);
+					
+					-- __index
+					meta.__index = (function(self, index)
+						local lIndex = index:lower();
+						
+						local s, m = pcall(function()
+							return obj[index];
+						end);
+
+						if s then
+							local index= obj[index];
+							local type = typeof(index);
+							return (type == "function" or type == "Instance") and wrap(index, lIndex) or index;
+						else
+							error(m);
+						end;
+					end);
+					
+					-- __newindex
+					-- with some help from MasterKelvinVIP based on some
+					-- code from his sandbox.
+					-- (includes SetMember function)
+					meta.__newindex = (function(self, index, newindex)
+						local Success, Result = pcall(setMember, obj, index, getReal(newindex))
+						return Success or error(Result, 2);
+					end);
+
+					-- Optimize future returns by
+					-- returning a cached result
+					-- rather than re-creating
+					-- the newproxy every single time
+					dad_b0x.CachedInstances.fake[obj]		= proxy;
+					dad_b0x.CachedInstances.real[proxy] = obj;
+
+					-- return the userdata rather than the metatable
+					-- see commit
+					-- https://github.com/mrteenageparker/sb-in-a-require/commit/ccf19a82b1d5c95864b8993da5e6e05cdcf52c39
+					return proxy;
+				end;
+			end;
+		elseif typeof(obj) == "table" then
+			local tbl = {};
+			for i,v in pairs(obj) do
+				tbl[i] = wrap(obj[i]);
+			end;
+			
+			dad_b0x.CachedInstances.fake[obj] = tbl;
+			
+			return tbl;
+		else
+			return obj;
+		end;
+	end;	
+end;
+
+local _env = setmetatable({}, {
+	__index = (function(self, index)
+		if shared(dad_b0x.Script).Disabled == true then
+			error("Script disabled.");
+		end;
+
+		if index == "owner" then return wrap(dad_b0x.Owner); elseif index == "script" then return wrap(dad_b0x.Script); end;
+
+		local mainEnvObj = dad_b0x.mainEnv[index];
+		local type = typeof(mainEnvObj);
+		if mainEnvObj and type == "Instance" and (dad_b0x.Blocked.Instances[index] or dad_b0x.Blocked.Instances[mainEnvObj] 
+				or dad_b0x.Blocked.Instances[mainEnvObj.ClassName]) then
+			return nil;
+		else
+			if type == "Instance" or type == "table" or type == "function" then
+				return wrap(mainEnvObj);
+			end;
+
+			return dad_b0x.Blocked.Functions[index] or dad_b0x.Fake.Functions[index]
+							or dad_b0x.Fake.Instances[index] or mainEnvObj;
+		end;
+	end);
+
+	__metatable = 'Locked. (level_1)';
+});
+
 -- return sandbox environment
 return (function(owner, script)
 	dad_b0x.Owner = owner;
 	dad_b0x.Script = script;
 
-	return dad_b0x.Environments.level_1;
+	return _env;
 end);
