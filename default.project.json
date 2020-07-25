@@ -1,0 +1,13 @@
+{
+	"name": "sandboxing",
+	"servePort": 34872,
+	"tree": {
+		"$className": "DataModel",
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"SB": {
+				"$path": "SB"
+			}
+		}
+	}
+}
