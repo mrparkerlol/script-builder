@@ -1,6 +1,15 @@
-# sb-in-a-require
-This repo is a work in progress, please check back later.
+# Script Builder
+A fully featured script builder.
 
-NOTE: the main branch is considered unstable, clone and use with caution.
-It is reccomended that you use the officially provided ROBLOX model
-for use rather than this repo.
+This is a fully-featured script builder. Includes the following features, ready out of the box:
+
+- Sandbox with custom methods, functions, and custom properties behavior
+- Local scripts, which can run on the client with full native speed
+- Server scripts, which run on the server with full native speed
+- Console output - which includes logging errors, and general output
+- Script builder itself is protected from potential damage
+
+The following dependencies are required in order to work on the project:
+
+- Rojo (https://github.com/Roblox/rojo)
+- Golang (Source: https://github.com/golang/go, Download: https://golang.org/dl/)
