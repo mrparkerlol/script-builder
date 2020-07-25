@@ -1,7 +1,7 @@
---[[wait();
+wait();
 script.Parent = nil;
 script:Destroy();
-script = nil;]]
+script = nil;
 
 print("Initializing client manager");
 
@@ -38,7 +38,69 @@ local function handleOutput(message, color)
   PrintText.Size = UDim2.new(0,PrintText.TextBounds.X, 0,PrintText.TextBounds.Y);
 end;
 
-handleOutput("Welcome to script builder! Enjoy your stay here!", Color3.fromRGB(0, 255, 0));
+local function ConfigureGui()
+  local currentChildren = 0;
+  local currentHeight, currentWidth = 0, 0;
+
+  -- Events
+  CommandLine.FocusLost:connect(function(enterPressed, key)
+    if enterPressed then
+      local msg = CommandLine.Text;
+      CommandLine.Text = "";
+
+      ReplicatedStorage:WaitForChild("SB_Remote"):FireServer(msg);
+    end;
+  end);
+
+  OutputFrame.ChildAdded:connect(function(child)
+    if child.ClassName == "TextLabel" then
+      child.Position = UDim2.new(0,0, 0,currentHeight + 10);
+      
+      currentHeight = currentHeight + child.TextBounds.Y;
+      if child.TextBounds.X > currentWidth then
+        currentWidth = child.TextBounds.X
+      end;
+
+      OutputFrame.CanvasSize = UDim2.new(0, currentWidth, 0,currentHeight);
+
+      if currentChildren > 13 then
+        OutputFrame.CanvasPosition = Vector2.new(0, currentHeight);
+      end;
+
+      currentChildren = currentChildren + 1;
+    end;
+  end);
+
+  handleOutput("Welcome to script builder! Enjoy your stay here!", Color3.fromRGB(0, 255, 0));
+end;
+
+ConfigureGui();
+
+-- Listen for ' key press
+ContextActionService:BindAction("CommandBarListener", function(actionName, userInputState, inputObject)
+  if userInputState == Enum.UserInputState.End then
+    CommandLine:CaptureFocus();
+  end;
+end, false, Enum.KeyCode.Quote);
+
+ConsoleGui.Changed:Connect(function(property)
+  if property == "Parent" then
+    if ConsoleGui.Parent == nil then
+      -- Request the server to give us a new gui
+      ReplicatedStorage:WaitForChild("SB_Remote"):FireServer("NewGui");
+
+      -- Wait for it to insert
+      ConsoleGui = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:WaitForChild("Console");
+      ConsoleMain = ConsoleGui and ConsoleGui:WaitForChild("Main");
+      CommandLine = ConsoleMain and ConsoleMain:WaitForChild("CommandLine");
+      OutputFrame = ConsoleMain and ConsoleMain:WaitForChild("Output");
+
+      if ConsoleGui then
+        ConfigureGui();
+      end;
+    end;
+  end;
+end);
 
 local function handleRemote()
   ReplicatedStorage:WaitForChild("SB_Remote").OnClientEvent:Connect(function(tbl)
@@ -124,55 +186,5 @@ setmetatable(shared, {
 
   __metatable = "This metatable is locked."
 });
-
-local function CreateGui()
-  local currentChildren = 0;
-  local currentHeight, currentWidth = 0, 0;
-
-  -- Events
-  CommandLine.FocusLost:connect(function(enterPressed, key)
-    if enterPressed then
-      local msg = CommandLine.Text;
-      CommandLine.Text = "";
-
-      ReplicatedStorage:WaitForChild("SB_Remote"):FireServer(msg);
-    end;
-  end);
-
-  OutputFrame.ChildAdded:connect(function(child)
-    if child.ClassName == "TextLabel" then
-      child.Position = UDim2.new(0,0, 0,currentHeight + 10);
-      
-      currentHeight = currentHeight + child.TextBounds.Y;
-      if child.TextBounds.X > currentWidth then
-        currentWidth = child.TextBounds.X
-      end;
-
-      OutputFrame.CanvasSize = UDim2.new(0, currentWidth, 0,currentHeight);
-
-      if currentChildren > 13 then
-        OutputFrame.CanvasPosition = Vector2.new(0, currentHeight);
-      end;
-
-      currentChildren = currentChildren + 1;
-    end;
-  end);
-
-	return ConsoleGui;
-end;
-
-local Gui = CreateGui();
-Gui.AncestryChanged:connect(function(_, parent) 
-  if not parent and #Players:GetPlayers() >= 1 then
-    CreateGui();
-  end;
-end);
-
-ContextActionService:BindAction("keyPress", function(actionName, userInputState, inputObject)
-  print(userInputState)
-	if userInputState == Enum.UserInputState.End then
-		Gui.Main.CommandLine:CaptureFocus();
-	end;
-end, false, Enum.KeyCode.Quote);
 
 print("Initialized client handler");

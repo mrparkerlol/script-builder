@@ -2,13 +2,14 @@ local Players             = game:GetService("Players");
 local HttpService         = game:GetService("HttpService");
 local ReplicatedStorage   = game:GetService("ReplicatedStorage");
 local ScriptContext       = game:GetService("ScriptContext");
+local RunService          = game:GetService("RunService");
 
-local SB = {};
-SB.Settings = {};
-
-local Sandbox = require(script.Essentials.Sandbox);
 local ClientHandler = script.ClientScripts.ClientHandler:Clone();
 local ConsoleGui = script.ClientEssentials.Gui.Console:Clone();
+
+local SB = {};
+SB.Settings = {}; -- Stores settings (such as API url, etc)
+SB.Sandbox = require(script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
 
 -- these will be returned in sandboxed
 -- scripts to prevent potential for
@@ -39,28 +40,37 @@ local function recreateRemote()
     ClientToServerRemote = Instance.new("RemoteEvent");
     ClientToServerRemote.Name = "SB_Remote";
     ClientToServerRemote.Parent = ReplicatedStorage;
-    ClientToServerRemote.AncestryChanged:Connect(function(parent)
-        if parent ~= ReplicatedStorage then
-            -- Someone must've destroyed it somehow - recreate it
-            recreateRemote();
-        end;
-    end);
+
+    SB.Sandbox.addObjectToProtectedList(ClientToServerRemote);
 
     ClientToServerRemote.OnServerEvent:connect(function(player, command)
-        SB.handleCommand(player, command);
+        if command == "NewGui" then
+            -- Create a fresh Console gui
+            local guiClone = ConsoleGui:Clone();
+            guiClone.Parent = player.PlayerGui;
+
+            -- Add it to the sandbox to prevent indexing
+            SB.Sandbox.addObjectToProtectedList(guiClone);
+        else
+            SB.handleCommand(player, command);
+        end;
     end);
 end;
 
--- Create the initial remote
-recreateRemote();
+-- Prevent destroying the remote
+RunService.Heartbeat:Connect(function()
+    if not ReplicatedStorage:FindFirstChild("SB_Remote") then
+        recreateRemote();
+    end;
+end);
 
 -- Initialize script builder internals
 setmetatable(shared, {
-    __call = (function(self, arg, ...)
+    __call = (function(_, arg, ...)
         local args = {...};
         if arg == "Sandbox" then
             -- Return the sandbox
-            return Sandbox;
+            return SB.Sandbox;
         elseif arg == "Output" and args[1] then
             local argsTable = args[1];
             if argsTable.Owner and argsTable.Type and argsTable.Message then
@@ -83,7 +93,7 @@ setmetatable(shared, {
         end;
     end),
 
-    __metatable = "The metatable is locked."
+    __metatable = "The metatable is locked"
 });
 
 function SB.runCode(player, type, source)
@@ -132,9 +142,9 @@ function SB.killScripts(player, command)
 
     for _, tbl in pairs(indexedScripts) do
         if tbl.Owner == player and command ~= "all" then
-            Sandbox.kill(tbl.Script);
+            SB.Sandbox.kill(tbl.Script);
         else
-            Sandbox.kill(tbl.Script);
+            SB.Sandbox.kill(tbl.Script);
         end
     end;
 end;
@@ -165,7 +175,7 @@ function SB.handleCommand(player, commandString)
                     ['Handler'] = "nl/all",
                     ['Player'] = player,
                 });
-            end
+            end;
 
             if command == "nl" then
                 ClientToServerRemote:FireClient(player, {
@@ -178,7 +188,7 @@ function SB.handleCommand(player, commandString)
                     player:LoadCharacter();
                 end;
 
-                local Instances = Sandbox.returnCreatedInstances();
+                local Instances = SB.Sandbox.returnCreatedInstances();
                 for i, instance in pairs(Instances) do
                     -- The instance might already be destroyed
                     -- so we have to pcall it
@@ -218,16 +228,22 @@ function SB.handleCommand(player, commandString)
                 BaseplateTemplate:Clone().Parent = workspace;
             end;
         end;
-    end
+    end;
 end;
 
 function SB.joinHandler(player)
+    -- Create the Console
     local guiClone = ConsoleGui:Clone();
     guiClone.Parent = player.PlayerGui;
 
+    -- Create the client handler
     local clone = ClientHandler:Clone();
     clone.Parent = player.PlayerGui;
     clone.Disabled = false;
+
+    -- Protect the objects
+    SB.Sandbox.addObjectToProtectedList(clone);
+    SB.Sandbox.addObjectToProtectedList(guiClone);
 
     player.Chatted:Connect(function(message)
         SB.handleCommand(player, message);
@@ -236,7 +252,8 @@ end;
 
 Players.PlayerAdded:Connect(SB.joinHandler);
 
-ScriptContext.Error:Connect(function(message, _, scriptInstance)
+ScriptContext.Error:Connect(function(message, trace, scriptInstance)
+    local message = message:gsub("Workspace.Script:%w+: ", "");
     local config = indexedScripts[scriptInstance];
     if config then
         ClientToServerRemote:FireClient(config.Owner, {
