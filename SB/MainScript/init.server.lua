@@ -1,5 +1,6 @@
 local SB = require(script.MainModule)({
     API_URL = "https://rbxapi.mrparker.pw/uploadAsset.php", -- Required for locals to work
+    PLACE_NAME = "Script Builder", -- The name of the place that will show to players when they join
 });
 
 local function kickError()

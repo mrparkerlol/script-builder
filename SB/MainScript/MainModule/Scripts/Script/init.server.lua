@@ -61,8 +61,6 @@ spawn(function()
 		return error(message, 0);
 	else
 		-- Run the code inside the sandbox
-		setfenv(0, metatable);
-		setfenv(1, metatable);
 		setfenv(Function, metatable);
 
 		Function();

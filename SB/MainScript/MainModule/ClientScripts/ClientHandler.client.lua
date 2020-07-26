@@ -10,6 +10,8 @@ local ReplicatedStorage    = game:GetService("ReplicatedStorage");
 local ScriptContext        = game:GetService("ScriptContext");
 local ContextActionService = game:GetService("ContextActionService");
 
+local PLACE_NAME = ReplicatedStorage:WaitForChild("SB_Config"):InvokeServer("PLACE_NAME");
+
 local LocalPlayer = Players.LocalPlayer;
 
 local TextLabel = Instance.new("TextLabel");
@@ -71,7 +73,7 @@ local function ConfigureGui()
     end;
   end);
 
-  handleOutput("Welcome to script builder! Enjoy your stay here!", Color3.fromRGB(0, 255, 0));
+  handleOutput("Welcome to " .. PLACE_NAME .. "! Enjoy your stay here!", Color3.fromRGB(0, 255, 0));
 end;
 
 ConfigureGui();

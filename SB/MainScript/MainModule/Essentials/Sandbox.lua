@@ -142,8 +142,8 @@ function Sandbox.getMethodOverride(object, index)
 
     local indexClass = Sandbox.MethodOverrides[object.ClassName];
     if indexClass then
-        if indexClass[index:lower()] then
-            return indexClass[index:lower()];
+        if indexClass[index:lower():match("[^%z]*")] then
+            return indexClass[index:lower():match("[^%z]*")];
         end;
     end;
 
@@ -271,11 +271,11 @@ function InternalSandboxFunctions.wrap(instance, index, object)
             else
                 -- Wrap the index anyways, otherwise the sandbox will allow
                 -- the code to escape potentially
-                local success, message = pcall(function() return object[index] end); -- checks whether or not it is found
+                local success, indexed = pcall(function() return object[index]; end);
                 if success then
-                    return InternalSandboxFunctions.wrap(instance, index, object[index]);
+                    return InternalSandboxFunctions.wrap(instance, nil, indexed);
                 else
-                    return error(message, 2);
+                    return error(indexed, 2);
                 end;
             end;
         end);
@@ -319,45 +319,50 @@ function InternalSandboxFunctions.wrap(instance, index, object)
             local realArgs = InternalSandboxFunctions.getReal(instance, args);
 
             -- Attempt to call the function
-            local success, message;
+            local results;
             if #realArgs >= 1 then
-                success, message = instance.environment.pcall(object, unpack(realArgs));
+                results = {pcall(object, unpack(realArgs))};
             else
-                success, message = instance.environment.pcall(object, nil);
+                results = {pcall(object, nil)};
             end;
 
             -- Was it successful?
-            if success then
-                -- Check the returned data
-                if typeof(message) == "table" then -- Message is a table
-                    -- If the index is attempting to get the environment or is the environment,
-                    -- then just return the sandbox instance itself to prevent breaking out.
-                    if message == instance.environment then
-                        return Sandbox.getInstance(instance);
-                    end;
+            if results[1] then
+                table.remove(results, 1); -- removes the success variable - the rest is the tuple
 
-                    -- Iterates through the table, removes stuff from it
-                    -- that shouldn't be in there - like results from
-                    -- Instance:GetChildren()
-                    for i=1, #message do
-                        if Sandbox.getIsObjectProtected(message[i]) then
-                            table.remove(message, i);
+                for index, result in pairs(results) do
+                    if typeof(result) == "table" then
+                        -- If the index is attempting to get the environment or is the environment,
+                        -- then just return the sandbox instance itself to prevent breaking out.
+                        if result == instance.environment then
+                            return Sandbox.getInstance(instance);
                         end;
-                    end;
 
-                    -- Ultimately, return the message
-                    return message;
-                elseif typeof(message) == "Instance" then -- Message is an instance - return a wrapped version of it
-                    return InternalSandboxFunctions.wrap(instance, nil, message);
-                elseif Sandbox.getIsObjectProtected(message) then -- Message is a prevented object - return nil.
-                    return nil;
-                else
-                    -- Just return the message - could just be a string.
-                    return message;
+                        -- Iterates through the table, removes stuff from it
+                        -- that shouldn't be in there - like results from
+                        -- Instance:GetChildren()
+                        for i=1, #result do
+                            if Sandbox.getIsObjectProtected(result[i]) then
+                                table.remove(result, i);
+                            else
+                                result[i] = InternalSandboxFunctions.wrap(instance, nil, result[i]);
+                            end;
+                        end;
+
+                        results[index] = result;
+                    elseif Sandbox.getIsObjectProtected(result) then
+                        table.remove(results, index);
+                    elseif typeof(result) == "Instance" then
+                        results[index] = InternalSandboxFunctions.wrap(instance, nil, result);
+                    elseif typeof(ret) == "function" then
+                        results[index] = InternalSandboxFunctions.wrap(instance, index, result)
+                    end;
                 end;
+
+                return unpack(results);
             else
                 -- Function was unsuccessful - return the error to the caller
-                return error(message, 2);
+                return error(results[2], 2);
             end;
         end;
 
@@ -463,13 +468,12 @@ function Sandbox.new(scriptObject, environment, customItems)
                 return error("Script disabled.", 2);
             end;
 
-            --local custom = customItems[index] or Sandbox.getCustomOverride(index);
-            --if custom then -- custom item (such as custom print, _G, etc)
-            --    return custom;
-            --else
+            if customItems[index] then -- custom item (such as custom print, _G, etc)
+                return customItems[index];
+            else
                 -- Return a wrapped version of the object if needed
                 return InternalSandboxFunctions.wrap(instance, index, environment[index]);
-            --end;
+            end;
         end),
 
         __metatable = "The metatable is locked"

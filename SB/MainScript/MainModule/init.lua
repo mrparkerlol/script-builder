@@ -34,32 +34,50 @@ BaseplateTemplate.Name = "Base";
 
 BaseplateTemplate:Clone().Parent = workspace;
 
-local ClientToServerRemote;
+local ClientToServerRemote, ClientToServerRemoteFunction;
+
+local function getConfig(_, arg)
+    if arg == "PLACE_NAME" then
+        return SB.Settings.PLACE_NAME;
+    end;
+end;
 
 local function recreateRemote()
-    ClientToServerRemote = Instance.new("RemoteEvent");
-    ClientToServerRemote.Name = "SB_Remote";
-    ClientToServerRemote.Parent = ReplicatedStorage;
+    if not ReplicatedStorage:FindFirstChild("SB_Config") then
+        ClientToServerRemoteFunction = Instance.new("RemoteFunction");
+        ClientToServerRemoteFunction.Name = "SB_Config";
+        ClientToServerRemoteFunction.Parent = ReplicatedStorage;
 
-    SB.Sandbox.addObjectToProtectedList(ClientToServerRemote);
+        SB.Sandbox.addObjectToProtectedList(ClientToServerRemoteFunction);
 
-    ClientToServerRemote.OnServerEvent:connect(function(player, command)
-        if command == "NewGui" then
-            -- Create a fresh Console gui
-            local guiClone = ConsoleGui:Clone();
-            guiClone.Parent = player.PlayerGui;
-
-            -- Add it to the sandbox to prevent indexing
-            SB.Sandbox.addObjectToProtectedList(guiClone);
-        else
-            SB.handleCommand(player, command);
-        end;
-    end);
+        ClientToServerRemoteFunction.OnServerInvoke = getConfig;
+    end;
+    
+    if not ReplicatedStorage:FindFirstChild("SB_Remote") then
+        ClientToServerRemote = Instance.new("RemoteEvent");
+        ClientToServerRemote.Name = "SB_Remote";
+        ClientToServerRemote.Parent = ReplicatedStorage;
+    
+        SB.Sandbox.addObjectToProtectedList(ClientToServerRemote);
+    
+        ClientToServerRemote.OnServerEvent:connect(function(player, command)
+            if command == "NewGui" then
+                -- Create a fresh Console gui
+                local guiClone = ConsoleGui:Clone();
+                guiClone.Parent = player.PlayerGui;
+    
+                -- Add it to the sandbox to prevent indexing
+                SB.Sandbox.addObjectToProtectedList(guiClone);
+            else
+                SB.handleCommand(player, command);
+            end;
+        end);
+    end;
 end;
 
 -- Prevent destroying the remote
 RunService.Heartbeat:Connect(function()
-    if not ReplicatedStorage:FindFirstChild("SB_Remote") then
+    if not ReplicatedStorage:FindFirstChild("SB_Remote") or not ReplicatedStorage:FindFirstChild("SB_Config") then
         recreateRemote();
     end;
 end);
@@ -269,7 +287,8 @@ end);
 return function(settings)
     assert(typeof(settings) == "table", "Expected table when instantiating script builder.");
     assert(settings.API_URL, "Expected API_URL to be a string when instantiating script builder with given settings.");
-
+    assert(settings.PLACE_NAME, "Expected PLACE_NAME to be a string when instantiating script builder with given settings.");
+    
     SB.Settings = settings;
 
     return SB;
