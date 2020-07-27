@@ -1,8 +1,11 @@
-local Players             = game:GetService("Players");
-local HttpService         = game:GetService("HttpService");
-local ReplicatedStorage   = game:GetService("ReplicatedStorage");
-local ScriptContext       = game:GetService("ScriptContext");
-local RunService          = game:GetService("RunService");
+local Players = game:GetService("Players");
+local HttpService = game:GetService("HttpService");
+local ReplicatedStorage = game:GetService("ReplicatedStorage");
+local ScriptContext = game:GetService("ScriptContext");
+local RunService = game:GetService("RunService");
+local MarketplaceService = game:GetService("MarketplaceService");
+
+local PLACE_INFO = MarketplaceService:GetProductInfo(game.PlaceId);
 
 local ClientHandler = script.ClientScripts.ClientHandler:Clone();
 local ConsoleGui = script.ClientEssentials.Gui.Console:Clone();
@@ -287,9 +290,11 @@ end);
 return function(settings)
     assert(typeof(settings) == "table", "Expected table when instantiating script builder.");
     assert(settings.API_URL, "Expected API_URL to be a string when instantiating script builder with given settings.");
-    assert(settings.PLACE_NAME, "Expected PLACE_NAME to be a string when instantiating script builder with given settings.");
     
     SB.Settings = settings;
+
+    -- Configure settings internally
+    SB.Settings.PLACE_NAME = PLACE_INFO.Name or "Script Builder";
 
     return SB;
 end;

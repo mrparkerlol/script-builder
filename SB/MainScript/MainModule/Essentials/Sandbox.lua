@@ -352,10 +352,8 @@ function InternalSandboxFunctions.wrap(instance, index, object)
                         results[index] = result;
                     elseif Sandbox.getIsObjectProtected(result) then
                         table.remove(results, index);
-                    elseif typeof(result) == "Instance" then
+                    elseif typeof(result) == "Instance" or typeof(result) == "function" then
                         results[index] = InternalSandboxFunctions.wrap(instance, nil, result);
-                    elseif typeof(ret) == "function" then
-                        results[index] = InternalSandboxFunctions.wrap(instance, index, result)
                     end;
                 end;
 
