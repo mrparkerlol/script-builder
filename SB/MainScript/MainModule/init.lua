@@ -55,20 +55,20 @@ local function recreateRemote()
 
         ClientToServerRemoteFunction.OnServerInvoke = getConfig;
     end;
-    
+
     if not ReplicatedStorage:FindFirstChild("SB_Remote") then
         ClientToServerRemote = Instance.new("RemoteEvent");
         ClientToServerRemote.Name = "SB_Remote";
         ClientToServerRemote.Parent = ReplicatedStorage;
-    
+
         SB.Sandbox.addObjectToProtectedList(ClientToServerRemote);
-    
+
         ClientToServerRemote.OnServerEvent:connect(function(player, command)
             if command == "NewGui" then
                 -- Create a fresh Console gui
                 local guiClone = ConsoleGui:Clone();
                 guiClone.Parent = player.PlayerGui;
-    
+
                 -- Add it to the sandbox to prevent indexing
                 SB.Sandbox.addObjectToProtectedList(guiClone);
             else
@@ -85,39 +85,7 @@ RunService.Heartbeat:Connect(function()
     end;
 end);
 
--- Initialize script builder internals
-setmetatable(shared, {
-    __call = (function(_, arg, ...)
-        local args = {...};
-        if arg == "Sandbox" then
-            -- Return the sandbox
-            return SB.Sandbox;
-        elseif arg == "Output" and args[1] then
-            local argsTable = args[1];
-            if argsTable.Owner and argsTable.Type and argsTable.Message then
-                ClientToServerRemote:FireClient(argsTable.Owner, {
-                    ['Handler'] = "Output",
-                    ['Type'] = argsTable.Type,
-                    ['Message'] = argsTable.Message
-                });
-            elseif argsTable.Type and argsTable.Message then
-                ClientToServerRemote:FireAllClients({
-                    ['Handler'] = "Output",
-                    ['Type'] = argsTable.Type,
-                    ['Message'] = argsTable.Message
-                });
-            end;
-        elseif typeof(arg) == "Instance" and arg.ClassName == "Script" then
-            if indexedScripts[arg] then
-                return indexedScripts[arg];
-            end;
-        end;
-    end),
-
-    __metatable = "The metatable is locked"
-});
-
-function SB.runCode(player, type, source)
+function SB.runCode(player, type, source, parent)
     if type == "HttpServer" or type == "HttpLocal" then
         local success, code = pcall(function()
             return HttpService:GetAsync(source, false);
@@ -146,12 +114,53 @@ function SB.runCode(player, type, source)
             SandboxInstance = {},
         };
 
-        Script.Parent = workspace;
+        Script.Parent = parent or workspace;
         Script.Disabled = false;
+
+        return Script;
     elseif type == "Local" then
         -- TODO: implement locals
     end;
 end;
+
+-- Initialize script builder internals
+setmetatable(shared, {
+    __call = (function(_, arg, ...)
+        local args = {...};
+        if arg == "Sandbox" then
+            -- Return the sandbox
+            return SB.Sandbox;
+        elseif arg == "runScript" then
+            assert(typeof(args[1]) == "string", "Expected a string when calling shared(\"runScript\") arg #1");
+            assert(typeof(args[2]) == "Instance", "Expected a Instance when calling shared(\"runScript\") arg #2");
+            assert(typeof(args[3]) == "Instance", "Expected a Instance when calling shared(\"runScript\") arg #3");
+
+            local code, parent, player = args[1], args[2], args[3];
+            return SB.runCode(player, "Server", code, parent);
+        elseif arg == "Output" and args[1] then
+            local argsTable = args[1];
+            if argsTable.Owner and argsTable.Type and argsTable.Message then
+                ClientToServerRemote:FireClient(argsTable.Owner, {
+                    ['Handler'] = "Output",
+                    ['Type'] = argsTable.Type,
+                    ['Message'] = argsTable.Message
+                });
+            elseif argsTable.Type and argsTable.Message then
+                ClientToServerRemote:FireAllClients({
+                    ['Handler'] = "Output",
+                    ['Type'] = argsTable.Type,
+                    ['Message'] = argsTable.Message
+                });
+            end;
+        elseif typeof(arg) == "Instance" and arg.ClassName == "Script" then
+            if indexedScripts[arg] then
+                return indexedScripts[arg];
+            end;
+        end;
+    end),
+
+    __metatable = "The metatable is locked"
+});
 
 function SB.killScripts(player, command)
     if player and command then
@@ -161,12 +170,16 @@ function SB.killScripts(player, command)
         });
     end;
 
-    for _, tbl in pairs(indexedScripts) do
+    for index, tbl in pairs(indexedScripts) do
         if tbl.Owner == player and command ~= "all" then
             SB.Sandbox.kill(tbl.Script);
         else
             SB.Sandbox.kill(tbl.Script);
         end
+
+        -- Destroy the script object
+        tbl.Script:Destroy();
+        indexedScripts[index] = nil;
     end;
 end;
 
@@ -271,7 +284,16 @@ function SB.joinHandler(player)
     end);
 end;
 
+function SB.leaveHandler(player)
+    SB.killScripts(player);
+end;
+
+for _,plr in pairs(Players:GetPlayers()) do
+    SB.joinHandler(plr);
+end;
+
 Players.PlayerAdded:Connect(SB.joinHandler);
+Players.PlayerRemoving:Connect(SB.leaveHandler);
 
 ScriptContext.Error:Connect(function(message, trace, scriptInstance)
     local message = message:gsub("Workspace.Script:%w+: ", "");

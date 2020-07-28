@@ -51,10 +51,16 @@ spawn(function()
 			});
 		end),
 
+		-- NewScript
+		['NS'] = (function(source, parent)
+			return shared("runScript", source, parent, config.Owner);
+		end),
+
 		['_G'] = _G.sandboxedG,
 		['shared'] = _G.sandboxedShared,
 	});
 
+	
 	local Function, message = loadstring(config.Source, 'SB-Script');
 	if not Function then
 		-- Code had a syntax error

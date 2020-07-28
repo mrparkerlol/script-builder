@@ -5,14 +5,16 @@ script = nil;
 
 print("Initializing client manager");
 
-local Players              = game:GetService("Players");
-local ReplicatedStorage    = game:GetService("ReplicatedStorage");
-local ScriptContext        = game:GetService("ScriptContext");
+local Players = game:GetService("Players");
+local ReplicatedStorage = game:GetService("ReplicatedStorage");
+local ScriptContext = game:GetService("ScriptContext");
 local ContextActionService = game:GetService("ContextActionService");
+local RunService = game:GetService("RunService");
 
 local PLACE_NAME = ReplicatedStorage:WaitForChild("SB_Config"):InvokeServer("PLACE_NAME");
 
 local LocalPlayer = Players.LocalPlayer;
+local Mouse = LocalPlayer:GetMouse();
 
 local TextLabel = Instance.new("TextLabel");
 TextLabel.BackgroundTransparency = 1;
@@ -29,8 +31,10 @@ local indexedScripts = {};
 
 local ConsoleGui = LocalPlayer.PlayerGui:WaitForChild("Console");
 local ConsoleMain = ConsoleGui:WaitForChild("Main");
-local CommandLine = ConsoleMain:WaitForChild("CommandLine");
+local CommandLine = ConsoleMain:WaitForChild("Command"):WaitForChild("CommandLine");
 local OutputFrame = ConsoleMain:WaitForChild("Output");
+
+local consoleMainSelected = false;
 
 local function handleOutput(message, color)
   local PrintText = TextLabel:Clone();
@@ -73,6 +77,22 @@ local function ConfigureGui()
     end;
   end);
 
+  ConsoleMain.InputBegan:Connect(function(inputObject)
+    local inputType = inputObject.UserInputType;
+    if inputType == Enum.UserInputType.MouseButton1 or inputType == Enum.UserInputType.Touch then
+      consoleMainSelected = true;
+    end;
+  end);
+
+  ConsoleMain.InputEnded:Connect(function(inputObject)
+    local inputType = inputObject.UserInputType;
+    if inputType == Enum.UserInputType.MouseButton1 or 
+        inputType == Enum.UserInputType.Touch or
+        inputObject.KeyCode == Enum.KeyCode.Quote then
+          consoleMainSelected = false;
+      end;
+  end);
+
   handleOutput("Welcome to " .. PLACE_NAME .. "! Enjoy your stay here!", Color3.fromRGB(0, 255, 0));
 end;
 
@@ -94,7 +114,7 @@ ConsoleGui.Changed:Connect(function(property)
       -- Wait for it to insert
       ConsoleGui = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:WaitForChild("Console");
       ConsoleMain = ConsoleGui and ConsoleGui:WaitForChild("Main");
-      CommandLine = ConsoleMain and ConsoleMain:WaitForChild("CommandLine");
+      CommandLine = ConsoleMain and ConsoleMain:WaitForChild("Command"):WaitForChild("CommandLine");
       OutputFrame = ConsoleMain and ConsoleMain:WaitForChild("Output");
 
       if ConsoleGui then
@@ -188,5 +208,20 @@ setmetatable(shared, {
 
   __metatable = "This metatable is locked."
 });
+
+spawn(function()
+  while true do
+    repeat 
+      RunService.RenderStepped:wait();
+
+      -- Restore the UI to it's original position
+      -- to prevent the UI from disappearing from the screen
+      if ConsoleMain.Parent and ConsoleMain.Position.X.Offset > Mouse.ViewSizeX or ConsoleMain.Position.Y.Offset > Mouse.ViewSizeY then
+        ConsoleMain.Position = UDim2.new(0.1,0, 0.7,0);
+      end;
+    until consoleMainSelected;
+    ConsoleMain.Position = UDim2.new(0,Mouse.X, 0,Mouse.Y);
+  end;
+end);
 
 print("Initialized client handler");

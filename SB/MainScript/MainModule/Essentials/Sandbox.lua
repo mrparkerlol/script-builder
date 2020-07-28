@@ -176,7 +176,7 @@ end;
 function Sandbox.addCustomFunction(funcName, func)
     assert(typeof(funcName) == "string", handleTypeError(funcName, "addCustomOverride", "string", 1));
     assert(typeof(func) == "function", handleTypeError(func, "addCustomOverride", "string", 2));
-    
+
     if not Sandbox.CustomOverrides[funcName] then
         Sandbox.CustomOverrides[funcName] = func;
     end;
@@ -213,12 +213,7 @@ function Sandbox.getPropertyOverride(object, index)
 end;
 
 --[[
-    Internal functions used by the sandbox itself - specifically for it.
-]]
-local InternalSandboxFunctions = {};
-
---[[
-    InternalSandboxFunctions.wrap()
+    Sandbox.wrap()
     Catches all instances accessed by the code
     running inside the sandbox.
 
@@ -226,9 +221,9 @@ local InternalSandboxFunctions = {};
     breakouts. Do not modify unless you really
     know what you are doing.
 ]]
-function InternalSandboxFunctions.wrap(instance, index, object)
+function Sandbox.wrap(instance, index, object)
     local type = typeof(object);
-    local cache = InternalSandboxFunctions.getWrappedObject(instance, object, index);
+    local cache = Sandbox.getWrappedObject(instance, object, index);
     if cache then -- return object that has already been cached
         return cache;
     elseif Sandbox.getIsObjectProtected(object) then -- prevented object from being indexed
@@ -255,7 +250,7 @@ function InternalSandboxFunctions.wrap(instance, index, object)
             if preventedIndex then -- prevents indexing objects inside preventList.Objects
                 return nil;
             elseif preventedMethod then -- prevents indexing things like :Kick() and other destructive methods
-                local cache = InternalSandboxFunctions.getWrappedObject(instance, object, index);
+                local cache = Sandbox.getWrappedObject(instance, object, index);
                 if cache then -- Return from cache if it exists
                     return cache;
                 else
@@ -264,7 +259,7 @@ function InternalSandboxFunctions.wrap(instance, index, object)
                     end;
 
                     -- Cache the prevented method to speed up performance
-                    InternalSandboxFunctions.addToWrappedCache(instance, func, object, index);
+                    Sandbox.addToWrappedCache(instance, func, object, index);
 
                     return func;
                 end;
@@ -273,7 +268,7 @@ function InternalSandboxFunctions.wrap(instance, index, object)
                 -- the code to escape potentially
                 local success, indexed = pcall(function() return object[index]; end);
                 if success then
-                    return InternalSandboxFunctions.wrap(instance, nil, indexed);
+                    return Sandbox.wrap(instance, nil, indexed);
                 else
                     return error(indexed, 2);
                 end;
@@ -286,8 +281,9 @@ function InternalSandboxFunctions.wrap(instance, index, object)
             if protected then
                 return protected();
             else
+                local new = Sandbox.getReal(instance, newvalue);
                 local success, message = pcall(function()
-                    object[index] = newvalue;
+                    object[index] = new;
                 end);
 
                 if not success then
@@ -305,7 +301,7 @@ function InternalSandboxFunctions.wrap(instance, index, object)
         mt.__metatable = getmetatable(object);
 
         -- Add to cache
-        InternalSandboxFunctions.addToWrappedCache(instance, proxy, object);
+        Sandbox.addToWrappedCache(instance, proxy, object);
 
         -- Finally, return the wrapped object
         return proxy;
@@ -316,7 +312,7 @@ function InternalSandboxFunctions.wrap(instance, index, object)
             local args = {...};
 
             -- Get the real arguments
-            local realArgs = InternalSandboxFunctions.getReal(instance, args);
+            local realArgs = Sandbox.getReal(instance, args);
 
             -- Attempt to call the function
             local results;
@@ -345,7 +341,7 @@ function InternalSandboxFunctions.wrap(instance, index, object)
                             if Sandbox.getIsObjectProtected(result[i]) then
                                 table.remove(result, i);
                             else
-                                result[i] = InternalSandboxFunctions.wrap(instance, nil, result[i]);
+                                result[i] = Sandbox.wrap(instance, nil, result[i]);
                             end;
                         end;
 
@@ -353,7 +349,7 @@ function InternalSandboxFunctions.wrap(instance, index, object)
                     elseif Sandbox.getIsObjectProtected(result) then
                         table.remove(results, index);
                     elseif typeof(result) == "Instance" or typeof(result) == "function" then
-                        results[index] = InternalSandboxFunctions.wrap(instance, nil, result);
+                        results[index] = Sandbox.wrap(instance, nil, result);
                     end;
                 end;
 
@@ -365,10 +361,19 @@ function InternalSandboxFunctions.wrap(instance, index, object)
         end;
 
         -- Add function to the cache
-        InternalSandboxFunctions.addToWrappedCache(instance, func, object, index);
+        Sandbox.addToWrappedCache(instance, func, object, index);
 
         -- Return the function
         return func;
+    elseif typeof(object) == "table" then
+        local tbl = {};
+        for tblIndex, item in pairs(object) do
+            tbl[tblIndex] = Sandbox.wrap(instance, tblIndex, item);
+        end;
+
+        Sandbox.addToWrappedCache(instance, tbl, object, index);
+
+        return tbl;
     else
         -- Nothing to sandbox, just return the value here instead
         return object;
@@ -376,27 +381,35 @@ function InternalSandboxFunctions.wrap(instance, index, object)
 end;
 
 --[[
-    InternalSandboxFunctions.getReal()
+    Sandbox.getReal()
     Returns the real object when the sandbox requests it.
 ]]
-function InternalSandboxFunctions.getReal(instance, objects)
+function Sandbox.getReal(instance, objects)
     local tbl = {};
-    for _, object in pairs(objects) do
-        if instance.RealCache[object] then
-            table.insert(tbl, instance.RealCache[object]);
-        else
-            table.insert(tbl, object);
+    if typeof(objects) == "table" then
+        for _, object in pairs(objects) do
+            if instance.RealCache[object] then
+                table.insert(tbl, instance.RealCache[object]);
+            else
+                table.insert(tbl, object);
+            end;
         end;
-    end;
 
-    return tbl;
+        return tbl;
+    else
+        if instance.RealCache[objects] then
+            return instance.RealCache[objects];
+        end;
+
+        return objects;
+    end;
 end;
 
 --[[
-    InternalSandboxFunctions.getWrappedObject()
+    Sandbox.getWrappedObject()
     Returns from the cache a wrapped version of the object.
 ]]
-function InternalSandboxFunctions.getWrappedObject(instance, object, index)
+function Sandbox.getWrappedObject(instance, object, index)
     local success, indexed = pcall(function()
         return object[index];
     end);
@@ -418,10 +431,10 @@ function InternalSandboxFunctions.getWrappedObject(instance, object, index)
 end;
 
 --[[
-    InternalSandboxFunctions.addToWrappedCache()
+    Sandbox.addToWrappedCache()
     Helper function to add a wrapped object to the cache.
 ]]
-function InternalSandboxFunctions.addToWrappedCache(instance, fakeObject, realObject, index)
+function Sandbox.addToWrappedCache(instance, fakeObject, realObject, index)
     if index then
         if not instance.WrappedCache[index] then
             instance.WrappedCache[index] = fakeObject;
@@ -467,10 +480,14 @@ function Sandbox.new(scriptObject, environment, customItems)
             end;
 
             if customItems[index] then -- custom item (such as custom print, _G, etc)
-                return customItems[index];
+                if index == "_G" or index == "shared" then
+                    return customItems[index];
+                else
+                    return Sandbox.wrap(instance, nil, customItems[index]);
+                end;
             else
                 -- Return a wrapped version of the object if needed
-                return InternalSandboxFunctions.wrap(instance, index, environment[index]);
+                return Sandbox.wrap(instance, index, environment[index]);
             end;
         end),
 
