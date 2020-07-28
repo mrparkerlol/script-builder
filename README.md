@@ -9,7 +9,7 @@ This is a fully-featured script builder. Includes the following features, ready 
 - Console output - which includes logging errors, and general output
 - Script builder itself is protected from potential damage
 
-The following dependencies are required in order to work on the project:
+The following dependencies are required in order to make the project work:
 
 - Rojo (https://github.com/Roblox/rojo)
-- Golang (Source: https://github.com/golang/go, Download: https://golang.org/dl/)
+- Script Builder Backend (https://github.com/mrteenageparker/script-builder-backend)
