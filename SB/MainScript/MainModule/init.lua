@@ -14,12 +14,9 @@ local SB = {};
 SB.Settings = {}; -- Stores settings (such as API url, etc)
 SB.Sandbox = require(script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
 
--- these will be returned in sandboxed
--- scripts to prevent potential for
--- people to overwrite the script
--- builder tables in _G
-_G.sandboxedShared = {};
-_G.sandboxedG = {};
+-- Add tables for _G and shared to the sandbox
+SB.Sandbox.addCustomOverride("shared", setmetatable({}, { __metatable = "The metatable is locked" }));
+SB.Sandbox.addCustomOverride("_G", setmetatable({}, { __metatable = "The metatable is locked" }));
 
 local indexedScripts = {};
 

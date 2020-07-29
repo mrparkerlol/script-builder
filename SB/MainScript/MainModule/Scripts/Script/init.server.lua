@@ -55,12 +55,8 @@ spawn(function()
 		['NS'] = (function(source, parent)
 			return shared("runScript", source, parent, config.Owner);
 		end),
-
-		['_G'] = _G.sandboxedG,
-		['shared'] = _G.sandboxedShared,
 	});
 
-	
 	local Function, message = loadstring(config.Source, 'SB-Script');
 	if not Function then
 		-- Code had a syntax error
@@ -68,7 +64,12 @@ spawn(function()
 	else
 		-- Run the code inside the sandbox
 		setfenv(Function, metatable);
-
-		Function();
+		local success, message = pcall(function()
+			Function();
+		end);
+		
+		if not success then
+			return error(message, 0);
+		end;
 	end;
 end);
