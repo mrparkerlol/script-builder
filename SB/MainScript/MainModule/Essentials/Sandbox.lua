@@ -5,559 +5,366 @@
 ]]
 
 local typeof = typeof;
-local newproxy = newproxy;
-local assert = assert;
 local unpack = unpack;
+local newproxy = newproxy;
+local setfenv = setfenv;
 
-local function handleTypeError(var, funcName, typeExpected, argNum)
-    return string.format("Invalid arg #%d to \"Sandbox.%s\" (%s expected, got %s)", argNum, funcName, typeExpected, typeof(var));
-end;
-
---[[
-    Sandbox table for holding public functions
-    and public APIs for the sandbox
-]]
 local Sandbox = {};
-Sandbox.SandboxInstances = {}; -- Sandbox Instances table
-Sandbox.InstancesCreated = {}; -- Instances created with Instance.new
-Sandbox.PreventedList = {}; -- The list of items to prevent indexing (protects SB internals by default)
-Sandbox.MethodOverrides = {}; -- Allows overriding of methods
-Sandbox.PropertyOverrides = {}; -- Allows overriding of properties
-Sandbox.CustomFunctions = {}; -- Allows custom function definitions
-Sandbox.CustomOverrides = {}; -- Allows custom stuff that isn't a function
+Sandbox.SandboxInstances = {}; -- Created instances of the sandbox
+
+Sandbox.PreventAccess = {}; -- Prevents access to everything in here
+Sandbox.CustomMethods = {}; -- Custom methods on objects - also used for preventing destructive methods
+Sandbox.CreatedInstances = {}; -- Created instances with Instance.new()
+Sandbox.GlobalOverrides = {}; -- Global variables that would otherwise be unsandboxed in the environment - are wrapped
+Sandbox.UnWrappedGlobalOverrides = {}; -- Global overrides that don't need to be wrapped - such as tables, or functions
+Sandbox.ProtectedProperties = {}; -- Allows overriding properties that result in errors if they are set
+Sandbox.ProtectedServices = {}; -- Allows protecting specific services gotten from :GetService()
+Sandbox.ProtectedClasses = {}; -- Protects the classes in here from being destroyed, or kicked
+Sandbox.DestructiveMethods = { -- A list of destructive methods which can destroy stuff inside ProtectedClasses
+  ["destroy"] = true,
+  ["remove"] = true,
+  ["clearallchildren"] = true,
+  ["kick"] = true,
+  ["parent"] = true,
+};
 
 --[[
-    Sandbox.getIsObjectProtected()
-    Function for getting whether or not a object is protected
-    from being indexed
+  Sandbox.new()
+  Creates a new sandbox instance
 ]]
-function Sandbox.getIsObjectProtected(object)
-    if Sandbox.PreventedList[object] then
-        return true;
-    end;
+function Sandbox.new(scriptObject, environment)
+  local sandboxInstance = {
+    Killed = false, -- Handles killing scripts in this specific instance of the sandbox
+    RealCache = {}, -- Handles mapping real values to the faked values in this instance of the sandbox
+    WrappedCache = {}, -- Handles wrapped objects for this specific instance of the sandbox
+    LocalOverrides = {}, -- Handles sandboxing Instances/functions/tables for this specific instance of the sandbox
+  };
 
-    return false;
-end;
+  function sandboxInstance.setLocalOverride(index, value)
+    assert(typeof(index) == "string", "Expected string as first argument to sandboxInstance.setLocalOverride");
+    assert(typeof(value) ~= nil, "Expected Variant as second argument to sandboxInstance.setLocalOverride");
+    sandboxInstance.LocalOverrides[index] = value;
+  end;
 
---[[
-    Sandbox.addObjectToProtectedList()
-    Adds an object to the protected objects list - prevents
-    the object from being indexed
-]]
-function Sandbox.addObjectToProtectedList(object)
-    -- Checks if the passed argument is a Instance
-    assert(typeof(object) == "Instance", handleTypeError(object, "addObjectToProtectedList", "Instance", 1));
+  sandboxInstance.environment = setmetatable({}, {
+    __index = (function(_, index)
+      if sandboxInstance.Killed then
+        return error("Script disabled.", 0);
+      end;
 
-    if not Sandbox.PreventedList[object] then
-        -- Adds it to the index
-        Sandbox.PreventedList[object] = true;
-
-        -- Handles the cleanup of the object after
-        -- it is deleted
-        object.Changed:Connect(function(property)
-            if property == "Parent" then -- Is the property "Parent" being modified?
-                if object.Parent == nil then -- Is .Parent nil?
-                    Sandbox.PreventedList[object] = nil; -- Clear the object from the table
-                end;
-            end;
-        end);
-    end;
-end;
-
---[[
-    Sandbox.removeObjectFromProtectedList()
-    Removes an object from the protected objects list
-]]
-function Sandbox.removeObjectFromProtectedList(object)
-    assert(typeof(object) == "Instance", handleTypeError(object, "removeObjectFromProtectedList", "Instance", 1));
-
-    if Sandbox.PreventedList[object] then
-        Sandbox.PreventedList[object] = nil;
-    end;
-end;
-
---[[
-    Sandbox.getInstance()
-    Gets an instance of a sandbox from the instance table.
-]]
-function Sandbox.getInstance(instTable)
-    if Sandbox.SandboxInstances[instTable] then
-        return Sandbox.SandboxInstances[instTable];
-    end;
-end;
-
---[[
-    Sandbox.addInstance()
-    Adds an instance of a sandbox to the Instances table.
-]]
-function Sandbox.addInstance(instTable, mt)
-    if not Sandbox.SandboxInstances[instTable] then
-        Sandbox.SandboxInstances[instTable] = mt;
-    end;
-end;
-
---[[
-    Sandbox.destroyInstance()
-    Removes an instance of a sandbox from the Instances table.
-    Also handles the deconstruction process.
-]]
-function Sandbox.destroyInstance(scriptObject)
-    local instTable = Sandbox.SandboxInstances[scriptObject];
-    if instTable then
-        instTable.Killed = true; -- Disables the script running
-
-        -- Deletes from memory
-        Sandbox.SandboxInstances[instTable] = nil;
-        Sandbox.SandboxInstances[scriptObject] = nil;
-    end;
-end;
-
---[[
-    Sandbox.returnCreatedInstances()
-    Simple helper function to return the created instances
-]]
-function Sandbox.returnCreatedInstances()
-    return Sandbox.InstancesCreated;
-end;
-
---[[
-    Sandbox.addMethodOverride()
-    Adds a method override to sandbox
-]]
-function Sandbox.addMethodOverride(methodClass, methodName, func)
-    assert(typeof(methodClass) == "string", handleTypeError(methodClass, "addMethodOverride", "string", 1));
-    assert(typeof(methodName) == "string", handleTypeError(methodClass, "addMethodOverride", "string", 2));
-    assert(typeof(func) == "function", handleTypeError(func, "addMethodOverride", "function", 3));
-
-    if not Sandbox.MethodOverrides[methodClass] then
-        Sandbox.MethodOverrides[methodClass] = {};
-    end;
-
-    if not Sandbox.MethodOverrides[methodClass][methodName:lower()] then
-        Sandbox.MethodOverrides[methodClass][methodName:lower()] = func;
-    end;
-end;
-
---[[
-    Sandbox.getMethodOverride()
-    Helper function to get the method overrides for a specific class
-]]
-function Sandbox.getMethodOverride(object, index)
-    if typeof(object) ~= "Instance" then return; end;
-
-    local indexClass = Sandbox.MethodOverrides[object.ClassName];
-    if indexClass then
-        if indexClass[index:lower():match("[^%z]*")] then
-            return indexClass[index:lower():match("[^%z]*")];
-        end;
-    end;
-
-    return nil;
-end;
-
---[[
-    Sandbox.addPropertyOverride()
-    Adds a override for a proeprty for the specifc
-    object class
-]]
-function Sandbox.addPropertyOverride(propertyClass, propertyName, func)
-    assert(typeof(propertyClass) == "string", handleTypeError(propertyClass, "addPropertyOverride", "string", 1));
-    assert(typeof(propertyName) == "string", handleTypeError(propertyClass, "addPropertyOverride", "string", 2));
-    assert(typeof(func) == "function", handleTypeError(func, "addPropertyOverride", "function", 3));
-
-    if not Sandbox.PropertyOverrides[propertyClass] then
-        Sandbox.PropertyOverrides[propertyClass] = {};
-    end;
-
-    if not Sandbox.PropertyOverrides[propertyClass][propertyName] then
-        Sandbox.PropertyOverrides[propertyClass][propertyName] = func;
-    end;
-end;
-
---[[
-    Sandbox.addCustomOverride()
-    Adds a custom override function to the sandbox
-]]
-function Sandbox.addCustomFunction(funcName, func)
-    assert(typeof(funcName) == "string", handleTypeError(funcName, "addCustomOverride", "string", 1));
-    assert(typeof(func) == "function", handleTypeError(func, "addCustomOverride", "string", 2));
-
-    if not Sandbox.CustomFunctions[funcName] then
-        Sandbox.CustomFunctions[funcName] = func;
-    end;
-end;
-
---[[
-    Sandbox.getCustomOverride()
-    Returns the override set for the given index
-]]
-function Sandbox.getCustomFunction(index)
-    if Sandbox.CustomFunctions[index] then
-        return Sandbox.CustomFunctions[index];
-    end;
-
-    return nil;
-end;
-
---[[
-    Sandbox.getPropertyOverride()
-    Gets whether or not a property override exists for
-    this specific object's class
-]]
-function Sandbox.getPropertyOverride(object, index)
-    if typeof(object) ~= "Instance" then return; end;
-
-    local classIndex = Sandbox.PropertyOverrides[object.ClassName];
-    if classIndex then
-        if classIndex[index] then
-            return classIndex[index];
-        end;
-    end;
-
-    return nil;
-end;
-
---[[
-    Sandbox.setCustomOverride()
-    Allows overriding something that isn't a function
-]]
-function Sandbox.addCustomOverride(index, object)
-    assert(typeof(index) == "string", handleTypeError(index, "setCustomOverride", "string", 1));
-    assert(object ~= nil, handleTypeError(object, "setCustomOverride", "Variant", 2));
-
-    if not Sandbox.CustomOverrides[index] then
-        Sandbox.CustomOverrides[index] = object;
-        Sandbox.CustomOverrides[object] = object;
-    end;
-end;
-
---[[
-    Sandbox.getCustomOverride()
-    Gets a custom override by index
-]]
-function Sandbox.getCustomOverride(index)
-    if Sandbox.CustomOverrides[index] then
-        return Sandbox.CustomOverrides[index];
-    end;
-
-    return nil;
-end;
-
---[[
-    Sandbox.wrap()
-    Catches all instances accessed by the code
-    running inside the sandbox.
-
-    This function is paramount in preventing
-    breakouts. Do not modify unless you really
-    know what you are doing.
-]]
-function Sandbox.wrap(instance, index, object)
-    local type = typeof(object);
-    local cache = Sandbox.getWrappedObject(instance, object, index);
-    if cache then -- return object that has already been cached
-        return cache;
-    elseif Sandbox.getIsObjectProtected(object) then -- prevented object from being indexed
+      local index = index:match("[^%z]*");
+      local environmentItem = Sandbox.UnWrappedGlobalOverrides[index]
+                              or sandboxInstance.LocalOverrides[index]
+                              or environment[index]
+                              or nil;
+      if Sandbox.PreventAccess[index] or Sandbox.PreventAccess[environmentItem] then
         return nil;
-    end;
+      elseif Sandbox.GlobalOverrides[index] then
+        return Sandbox.wrap(sandboxInstance, Sandbox.GlobalOverrides[index]);
+      elseif environmentItem then
+        return environmentItem;
+      else
+        return nil;
+      end;
+    end),
 
-    -- Custom function handler
-    local customFunction = Sandbox.getCustomFunction(index);
-    if customFunction then
-        object = customFunction;
-    end;
+    __metatable = "The metatable is locked"
+  });
 
-    if type == "Instance" then
-        -- Create a userdata
-        local proxy = newproxy(true);
+  Sandbox.SandboxInstances[scriptObject] = sandboxInstance;
+  Sandbox.SandboxInstances[sandboxInstance] = sandboxInstance;
 
-        -- Get the metatable of the userdata
-        local mt = getmetatable(proxy);
-
-        -- Setup the indexing for the object
-        mt.__index = (function(_, index)
-            local preventedIndex = Sandbox.getIsObjectProtected(object);
-            local preventedMethod = Sandbox.getMethodOverride(object, index);
-            if preventedIndex then -- prevents indexing objects inside preventList.Objects
-                return nil;
-            elseif preventedMethod then -- prevents indexing things like :Kick() and other destructive methods
-                local cache = Sandbox.getWrappedObject(instance, object, index);
-                if cache then -- Return from cache if it exists
-                    return cache;
-                else
-                    local func = function(...)
-                        return preventedMethod(...);
-                    end;
-
-                    -- Cache the prevented method to speed up performance
-                    Sandbox.addToWrappedCache(instance, func, object, index);
-
-                    return func;
-                end;
-            else
-                -- Wrap the index anyways, otherwise the sandbox will allow
-                -- the code to escape potentially
-                local success, indexed = pcall(function() return object[index]; end);
-                if success then
-                    return Sandbox.wrap(instance, nil, indexed);
-                else
-                    return error(indexed, 2);
-                end;
-            end;
-        end);
-
-        -- Setup newindex to allow properties to be set
-        mt.__newindex = (function(_, index, value)
-            local protected = Sandbox.getPropertyOverride(object, index);
-            if protected then
-                return protected();
-            else
-                local newValue = Sandbox.getReal(instance, value);
-                local success, message = pcall(function()
-                    object[index] = newValue;
-                end);
-
-                if not success then
-                    return error(message, 2);
-                end;
-            end;
-        end);
-
-        -- Return the value of tostring for the object
-        mt.__tostring = (function(_)
-            return tostring(object);
-        end);
-
-        -- Set metatable to the object's metatable
-        mt.__metatable = getmetatable(object);
-
-        -- Add to cache
-        Sandbox.addToWrappedCache(instance, proxy, object);
-
-        -- Finally, return the wrapped object
-        return proxy;
-    elseif type == "table" then
-        local tbl = {};
-        local canWrite = true;
-        for key, value in pairs(object) do
-            local newKey = Sandbox.wrap(instance, nil, key);
-            local newValue = Sandbox.wrap(instance, nil, value);
-            tbl[newKey] = newValue;
-
-            local success = pcall(function()
-                object[key] = nil;
-                object[newKey] = newValue;
-            end);
-
-            if not success then
-                canWrite = false;
-            end;
-        end;
-
-        if not canWrite then -- Object is not writable, add it to cache and return new table
-            Sandbox.addToWrappedCache(instance, tbl, object, index);
-            return tbl;
-        else -- Object is writable, shouldn't be cached
-            return object;
-        end;
-    elseif type == "function" then
-        -- Create the function
-        local func = function(...)
-            -- Make the arguments a table
-            local args = {...};
-
-            -- Get the real arguments
-            local realArgs = Sandbox.getReal(instance, args);
-
-            -- Attempt to call the function
-            local results;
-            if #realArgs >= 1 then
-                results = {pcall(object, unpack(realArgs))};
-            else
-                results = {pcall(object, nil)};
-            end;
-
-            -- Was it successful?
-            if results[1] then
-                table.remove(results, 1); -- removes the success variable - the rest is the tuple
-
-                for index, result in pairs(results) do
-                    if Sandbox.getIsObjectProtected(result) then
-                        table.remove(results, index);
-                    elseif typeof(result) == "Instance" or typeof(result) == "function" then
-                        results[index] = Sandbox.wrap(instance, nil, result);
-                    elseif typeof(result) == "table" then
-                        local canWrite = true;
-
-                        local tbl = {};
-                        for key, value in pairs(result) do
-                            local newKey = Sandbox.wrap(instance, nil, key);
-                            local newValue = Sandbox.wrap(instance, nil, value);
-
-                            tbl[newKey] = newValue;
-
-                            if canWrite then
-                                local success = pcall(function()
-                                    result[key] = nil;
-                                    result[newKey] = newValue;
-                                end);
-
-                                if not success then
-                                    canWrite = false;
-                                end;
-                            end;
-                        end;
-
-                        results[index] = not canWrite and tbl or result;
-                    end;
-                end;
-
-                return unpack(results);
-            else
-                -- Function was unsuccessful - return the error to the caller
-                return error(results[2], 2);
-            end;
-        end;
-
-        -- Add function to the cache
-        Sandbox.addToWrappedCache(instance, func, object, index);
-
-        -- Return the function
-        return func;
-    else
-        -- Nothing to sandbox, just return the value here instead
-        return object;
-    end;
+  return sandboxInstance;
 end;
 
 --[[
-    Sandbox.getReal()
-    Returns the real object when the sandbox requests it.
+  Sandbox.kill()
+  Disables a script running inside sandbox
 ]]
-function Sandbox.getReal(instance, objects)
-    local tbl = {};
-    if typeof(objects) == "table" then
-        for _, object in pairs(objects) do
-            if instance.RealCache[object] then
-                table.insert(tbl, instance.RealCache[object]);
-            else
-                table.insert(tbl, object);
-            end;
-        end;
+function Sandbox.kill(scriptInstance)
+  assert(typeof(scriptInstance) == "Instance", "Expected arg #1 to Sandbox.kill to be a Script, not" .. typeof(scriptInstance));
 
-        return tbl;
-    else
-        if instance.RealCache[objects] then
-            return instance.RealCache[objects];
-        end;
-
-        return objects;
-    end;
+  local sandboxInstance = Sandbox.SandboxInstances[scriptInstance];
+  if Sandbox.SandboxInstances[scriptInstance] then
+    Sandbox.SandboxInstances[scriptInstance].Killed = true;
+    Sandbox.SandboxInstances[sandboxInstance] = nil;
+    Sandbox.SandboxInstances[scriptInstance] = nil;
+  end;
 end;
 
 --[[
-    Sandbox.getWrappedObject()
-    Returns from the cache a wrapped version of the object.
+  Sandbox.wrap()
+  Wraps a object to prevent breakouts.
+  This function is very important - do not modify unless you know what
+  you are doing. This function is paramount in preventing breakouts/bypasses.
 ]]
-function Sandbox.getWrappedObject(instance, object, index)
-    local success, indexed = pcall(function()
-        return object[index];
+function Sandbox.wrap(sandboxInstance, ...)
+  local args = {...};
+  for i = 1, #args do
+    local selected = args[i];
+    local wrapped = Sandbox.getWrapped(sandboxInstance, selected);
+
+    if wrapped then
+      return wrapped;
+    elseif Sandbox.PreventAccess[selected] then
+      selected = nil;
+    else
+      local type = typeof(selected);
+      if type == "Instance" then
+        selected = Sandbox.wrapInstance(sandboxInstance, selected);
+      elseif type == "table" then
+        selected = Sandbox.wrapTable(sandboxInstance, selected);
+      end;
+    end;
+
+    args[i] = selected;
+  end;
+
+  return unpack(args);
+end;
+
+--[[
+  Sandbox.getWrapped()
+  Returns a wrapped version of the object from the sandboxInstance
+]]
+function Sandbox.getWrapped(sandboxInstance, object)
+  if sandboxInstance.WrappedCache[object] then
+    return sandboxInstance.WrappedCache[object];
+  end;
+
+  return nil;
+end;
+
+--[[
+  Sandbox.wrapInstance()
+  Wraps a instance - such as game or a Player object
+]]
+function Sandbox.wrapInstance(sandboxInstance, object)
+  -- Create a userdata
+  local proxy = newproxy(true);
+
+  -- Get the metatable of the userdata
+  local mt = getmetatable(proxy);
+
+  -- Setup the indexing for the object
+  function mt.__index(_, index)
+    local index = index:match("[^%z]*");
+    local customMethod = Sandbox.getCustomMethod(object, index);
+    if customMethod then -- Return a custom method
+      return Sandbox.wrapMethod(sandboxInstance, index, customMethod);
+    end;
+
+    local success, indexed = pcall(function() return object[index]; end);
+    if success then -- Method/property is found inside the object
+      local type = typeof(indexed);
+      if Sandbox.PreventAccess[indexed] then
+        return nil;
+      elseif type == "Instance" then
+        return Sandbox.wrapInstance(sandboxInstance, indexed);
+      elseif type == "function" then
+        return Sandbox.wrapMethod(sandboxInstance, index, indexed);
+      else
+        return indexed;
+      end;
+     else
+      return error(indexed, 2);
+     end;
+  end;
+
+  -- Setup newindex to allow properties to be set
+  function mt.__newindex(_, index, value)
+    local index = index:match("[^%z]*");
+    local protected = Sandbox.ProtectedClasses[object.ClassName];
+    if protected and Sandbox.DestructiveMethods[index:lower()] then
+      return error(object.ClassName .. " is protected.", 2);
+    else
+      local newValue = Sandbox.getReal(sandboxInstance, value);
+      local success, message = pcall(function()
+          object[index] = newValue;
+      end);
+
+      if not success then
+          return error(message, 2);
+      end;
+    end;
+  end;
+
+  -- Return the value of tostring for the object
+  function mt.__tostring()
+    return tostring(object);
+  end;
+
+  -- Set metatable to the object's metatable
+  mt.__metatable = getmetatable(object);
+
+  -- Add to cache
+  sandboxInstance.WrappedCache[object] = proxy;
+  sandboxInstance.RealCache[proxy] = object;
+
+  -- Finally, return the wrapped object
+  return proxy;
+end;
+
+--[[
+  Sandbox.wrapTable()
+  Wraps a table - such as shared or _G
+]]
+function Sandbox.wrapTable(sandboxInstance, tbl)
+  if pcall(rawset, tbl, "TestKey", 1) then
+    rawset(tbl, "TestKey", nil);
+
+    for key, value in next, tbl do
+        local newKey = Sandbox.wrap(sandboxInstance, key);
+        local newValue = Sandbox.wrap(sandboxInstance, value);
+
+        rawset(tbl, key, nil);
+        rawset(tbl, newKey, newValue);
+    end;
+
+    return tbl;
+  end;
+end;
+
+--[[
+    Sandbox.wrapMethod()
+    Wraps metamethods
+]]
+function Sandbox.wrapMethod(sandboxInstance, index, methodFunction)
+  local sandboxMt = Sandbox.SandboxInstances[sandboxInstance].environment;
+  local methodWrapped = setfenv(function(self, ...)
+    local realSelf = Sandbox.getReal(sandboxInstance, self);
+    local realArgs = {Sandbox.getReal(sandboxInstance, ...)};
+    local destructive = Sandbox.DestructiveMethods[index:lower()] or nil;
+    if destructive then
+      for key, value in pairs(realArgs) do
+        local valueClass = typeof(value) == "Instance" and value.ClassName;
+        local keyClass = typeof(key) == "Instance" and key.ClassName;
+
+        if valueClass and Sandbox.ProtectedClasses[valueClass]
+            or keyClass and Sandbox.ProtectedClasses[keyClass] then
+          return error(valueClass or keyClass .. " is protected.", 2);
+        end;
+      end;
+
+      if Sandbox.ProtectedClasses[realSelf.ClassName] then
+        return error(realSelf.ClassName .. " is protected.", 2);
+      end;
+    end;
+    local ret = {Sandbox.wrap(sandboxInstance, methodFunction(realSelf, unpack(realArgs)))};
+    return unpack(ret);
+  end, sandboxMt);
+
+  sandboxInstance.RealCache[methodFunction] = methodWrapped;
+  sandboxInstance.WrappedCache[methodWrapped] = methodFunction;
+
+  return methodWrapped;
+end;
+
+--[[
+  Sandbox.getReal();
+  Returns unwrapped objects passed to it
+]]
+function Sandbox.getReal(sandboxInstance, ...)
+  local tbl = {...};
+  for key, value in next, tbl do
+      local keyCache = sandboxInstance.RealCache[key] or key;
+      local valueCache = sandboxInstance.RealCache[value] or value;
+      tbl[key] = nil;
+      tbl[keyCache] = valueCache;
+  end;
+
+  return unpack(tbl);
+end;
+
+--[[
+  Sandbox.getCustomMethod()
+  Returns a custom method defined by Sandbox.setMethodOverride()
+]]
+function Sandbox.getCustomMethod(object, index)
+  local objectClass = object.ClassName;
+  if Sandbox.CustomMethods[objectClass] then
+    return Sandbox.CustomMethods[objectClass][index:match("[^%z]*")];
+  end;
+
+  return nil;
+end;
+
+--[[
+  Sandbox.setGlobalOverride()
+  Sets a global override in which will replace
+  the global in the environment
+]]
+function Sandbox.setGlobalOverride(index, value)
+  assert(typeof(index) == "string", "Expected string as first argument to Sandbox.addGlobalOverride");
+  Sandbox.GlobalOverrides[index] = value;
+end;
+
+--[[
+  Sandbox.setUnWrappedGlobalOverride()
+  Sets a global override that doesn't get wrapped
+  This is useful for things like tables, or some functions
+]]
+function Sandbox.setUnWrappedGlobalOverride(index, value)
+  assert(typeof(index) == "string", "Expected string as first argument to Sandbox.setUnWrappedGlobalOverride");
+  Sandbox.UnWrappedGlobalOverrides[index] = value;
+end;
+
+--[[
+  Sandbox.setMethodOverride()
+  Sets a method override for the specific class
+]]
+function Sandbox.setMethodOverride(index, methodName, method)
+  assert(typeof(index) == "string", "Expected string as first argument to Sandbox.setMethodOverride");
+  assert(typeof(methodName) == "string", "Expected string as second argument to Sandbox.setMethodOverride");
+
+  if not Sandbox.CustomMethods[index] then
+    Sandbox.CustomMethods[index] = {};
+  end;
+
+  Sandbox.CustomMethods[index][methodName] = method;
+end;
+
+--[[
+  Sandbox.addProtectedObject()
+  Adds a object to the protected list - prevents them from being indexed
+  Also handles the cleanup for when the object is destroyed
+]]
+function Sandbox.addProtectedObject(object)
+  assert(typeof(object) == "Instance", "Expected instance in first argument to Sandbox.addProtectedObject");
+  if not Sandbox.PreventAccess[object] then
+    Sandbox.PreventAccess[object] = true;
+    object.Changed:Connect(function(property)
+      if property == "Parent" and object.Parent == nil then
+        Sandbox.PreventAccess[object] = nil;
+      end;
     end);
-
-    if success and instance.WrappedCache[indexed] then
-        return instance.WrappedCache[indexed];
-    else
-        local override = index and Sandbox.getMethodOverride(object, index);
-        if override then
-            return override;
-        elseif instance.WrappedCache[index] then
-            return instance.WrappedCache[index];
-        elseif instance.WrappedCache[object] then
-            return instance.WrappedCache[object];
-        end;
-    end;
-
-    return nil;
+  end;
 end;
 
 --[[
-    Sandbox.addToWrappedCache()
-    Helper function to add a wrapped object to the cache.
+  Sandbox.addProtectedClass()
+  Adds a class that should never be destroyed, kicked, or cleared
 ]]
-function Sandbox.addToWrappedCache(instance, fakeObject, realObject, index)
-    if index then
-        if not instance.WrappedCache[index] then
-            instance.WrappedCache[index] = fakeObject;
-            instance.RealCache[fakeObject] = realObject;
-        end;
-    else
-        if not instance.WrappedCache[realObject] then
-            instance.WrappedCache[realObject] = fakeObject;
-            instance.RealCache[fakeObject] = realObject;
-        end;
-    end;
+function Sandbox.addProtectedClass(index)
+  assert(typeof(index) == "string", "Expected string as first argument to Sandbox.addProtectedClass");
+  Sandbox.ProtectedClasses[index] = true;
 end;
 
 --[[
-    Sandbox.new()
-    Creates a new instance of a sandbox.
-
-    This is primarily setup for the user, however
-    if further customization is needed - it can be done
-    using the various helper functions
+  Sandbox.setProtectedProperty()
+  Sets a property to return a function if set
+  Function should return an error to the caller and
+  be a message about the property being protected
 ]]
-function Sandbox.new(scriptObject, environment, customItems)
-    assert(typeof(scriptObject) == "Instance", handleTypeError(scriptObject, "new", "Instance", 1));
-    assert(scriptObject.ClassName == "Script", handleTypeError(scriptObject.ClassName, "new", "Script", 1));
-    assert(typeof(environment) == "table", handleTypeError(environment, "new", "table", 2));
-    assert(typeof(customItems) == "table", handleTypeError(customItems, "new", "table", 4));
+function Sandbox.setProtectedProperty(index, propertyIndex, value)
+  assert(typeof(index) == "string", "Expected string as first argument when calling Sandbox.setProtectedProperty");
+  assert(typeof(propertyIndex) == "string", "Expected string as second argument when calling Sandbox.setProtectedProperty");
+  assert(typeof(value) == "function", "Expected function as third argument when calling Sandbox.setProtectedProperty");
+  if not Sandbox.ProtectedProperties[index] then
+    Sandbox.ProtectedProperties[index] = {};
+  end;
 
-    -- Create a new instance
-    local instance = {
-        Killed = false,
-        environment = environment,
-        RealCache = {},
-        WrappedCache = {},
-    };
-
-    local environment = setmetatable({}, {
-        __index = (function(_, index)
-            if instance.Killed then
-                return error("Script disabled.", 2);
-            end;
-
-            if customItems[index] then -- custom item (such as custom print, _G, etc)
-                return Sandbox.wrap(instance, nil, customItems[index]);
-            elseif Sandbox.getCustomOverride(index) then
-                return Sandbox.getCustomOverride(index);
-            else
-                -- Return a wrapped version of the object if needed
-                return Sandbox.wrap(instance, index, environment[index]);
-            end;
-        end),
-
-        __metatable = "The metatable is locked"
-    });
-
-    -- Add the instance of the sandbox to the instances table
-    Sandbox.SandboxInstances[scriptObject] = instance;
-    Sandbox.SandboxInstances[instance] = environment;
-
-    return environment;
-end;
-
---[[
-    Sandbox.kill()
-    Allows stopping the current execution of
-    code inside the sandbox.
-]]
-function Sandbox.kill(scriptObject)
-    assert(typeof(scriptObject) == "Instance", "Invalid arg #1 to Sandbox.kill (not a Instance)");
-    assert(scriptObject.ClassName == "Script", "Invalid arg #1 to Sandbox.kill (not a Script)");
-
-    -- Remove this instance from the Sandbox table to prevent
-    -- memory leaks - this also deconstructs it.
-    Sandbox.destroyInstance(scriptObject);
+  Sandbox.ProtectedProperties[index][propertyIndex] = value;
 end;
 
 return Sandbox;

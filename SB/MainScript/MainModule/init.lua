@@ -4,6 +4,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage");
 local ScriptContext = game:GetService("ScriptContext");
 local RunService = game:GetService("RunService");
 local MarketplaceService = game:GetService("MarketplaceService");
+local Debris = game:GetService("Debris");
+
+local typeof = typeof;
+local game = game;
 
 local PLACE_INFO = MarketplaceService:GetProductInfo(game.PlaceId);
 
@@ -15,8 +19,8 @@ SB.Settings = {}; -- Stores settings (such as API url, etc)
 SB.Sandbox = require(script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
 
 -- Add tables for _G and shared to the sandbox
-SB.Sandbox.addCustomOverride("shared", setmetatable({}, { __metatable = "The metatable is locked" }));
-SB.Sandbox.addCustomOverride("_G", setmetatable({}, { __metatable = "The metatable is locked" }));
+SB.Sandbox.setUnWrappedGlobalOverride("shared", setmetatable({}, { __metatable = "The metatable is locked" }));
+SB.Sandbox.setUnWrappedGlobalOverride("_G", setmetatable({}, { __metatable = "The metatable is locked" }));
 
 local indexedScripts = {};
 
@@ -48,7 +52,7 @@ local function recreateRemote()
         ClientToServerRemoteFunction.Name = "SB_Config";
         ClientToServerRemoteFunction.Parent = ReplicatedStorage;
 
-        SB.Sandbox.addObjectToProtectedList(ClientToServerRemoteFunction);
+        SB.Sandbox.addProtectedObject(ClientToServerRemoteFunction);
 
         ClientToServerRemoteFunction.OnServerInvoke = getConfig;
     end;
@@ -58,7 +62,7 @@ local function recreateRemote()
         ClientToServerRemote.Name = "SB_Remote";
         ClientToServerRemote.Parent = ReplicatedStorage;
 
-        SB.Sandbox.addObjectToProtectedList(ClientToServerRemote);
+        SB.Sandbox.addProtectedObject(ClientToServerRemote);
 
         ClientToServerRemote.OnServerEvent:connect(function(player, command)
             if command == "NewGui" then
@@ -113,6 +117,12 @@ function SB.runCode(player, type, source, parent)
 
         Script.Parent = parent or workspace;
         Script.Disabled = false;
+
+        shared("Output", {
+            Owner = player,
+            Type = "general",
+            Message = "Ran server script."
+        });
 
         return Script;
     elseif type == "Local" then
@@ -219,7 +229,7 @@ function SB.handleCommand(player, commandString)
                     player:LoadCharacter();
                 end;
 
-                local Instances = SB.Sandbox.returnCreatedInstances();
+                local Instances = SB.Sandbox.CreatedInstances;
                 for i, instance in pairs(Instances) do
                     -- The instance might already be destroyed
                     -- so we have to pcall it
@@ -273,8 +283,8 @@ function SB.joinHandler(player)
     clone.Disabled = false;
 
     -- Protect the objects
-    SB.Sandbox.addObjectToProtectedList(clone);
-    SB.Sandbox.addObjectToProtectedList(guiClone);
+    SB.Sandbox.addProtectedObject(clone);
+    SB.Sandbox.addProtectedObject(guiClone);
 
     player.Chatted:Connect(function(message)
         SB.handleCommand(player, message);
@@ -293,7 +303,7 @@ Players.PlayerAdded:Connect(SB.joinHandler);
 Players.PlayerRemoving:Connect(SB.leaveHandler);
 
 ScriptContext.Error:Connect(function(message, trace, scriptInstance)
-    local message = message:gsub("Workspace.Script:%w+: ", "");
+    --local message = message:gsub("Workspace.Script:%w+: ", "");
     local config = indexedScripts[scriptInstance];
     if config then
         ClientToServerRemote:FireClient(config.Owner, {
@@ -309,7 +319,7 @@ end);
 return function(settings)
     assert(typeof(settings) == "table", "Expected table when instantiating script builder.");
     assert(settings.API_URL, "Expected API_URL to be a string when instantiating script builder with given settings.");
-    
+
     SB.Settings = settings;
 
     -- Configure settings internally

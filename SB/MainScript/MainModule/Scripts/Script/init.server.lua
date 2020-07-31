@@ -1,3 +1,16 @@
+local game = game;
+local workspace = workspace;
+local Instance = Instance;
+
+local Debris = game:GetService("Debris");
+
+local spawn = spawn;
+local getfenv = getfenv;
+local loadstring = loadstring;
+local shared= shared;
+local setfenv = setfenv;
+local typeof = typeof;
+
 -- Get the owner of the script and source.
 local config = shared(script);
 
@@ -8,14 +21,15 @@ spawn(function()
 	-- Create the sandbox instance
 	-- Print, warn and _G and shared sandboxing
 	-- is done for you
-	local metatable = sandbox.new(script, getfenv(), {
-		['print'] = (function(...)
+	local sandboxInstance = sandbox.new(script, getfenv());
+
+	sandboxInstance.setLocalOverride("warn", function(...)
 			-- Make the args a table
 			local args = {...};
 
 			-- Iterate through the arguments, convert them to a string
 			for i=1, #args do
-				args[i] = tostring(args[i]);
+					args[i] = tostring(args[i]);
 			end;
 
 			-- Concatenate the strings together,
@@ -24,19 +38,19 @@ spawn(function()
 
 			-- Send the string to the output
 			shared("Output", {
-				Owner = config.Owner,
-				Type = "print",
-				Message = printString
+					Owner = config.Owner,
+					Type = "warn",
+					Message = printString
 			});
-		end),
+	end);
 
-		['warn'] = (function(...)
+	sandboxInstance.setLocalOverride("print", function(...)
 			-- Make the args a table
 			local args = {...};
 
 			-- Iterate through the arguments, convert them to a string
 			for i=1, #args do
-				args[i] = tostring(args[i]);
+					args[i] = tostring(args[i]);
 			end;
 
 			-- Concatenate the strings together,
@@ -45,17 +59,59 @@ spawn(function()
 
 			-- Send the string to the output
 			shared("Output", {
-				Owner = config.Owner,
-				Type = "warn",
-				Message = printString
+					Owner = config.Owner,
+					Type = "print",
+					Message = printString
 			});
-		end),
+	end);
 
-		-- NewScript
-		['NS'] = (function(source, parent)
-			return shared("runScript", source, parent, config.Owner);
+	sandboxInstance.setLocalOverride("NS", function(source, parent)
+		return shared("runScript", source, parent, config.Owner);
+	end);
+
+	sandboxInstance.setLocalOverride("game", sandbox.wrap(sandboxInstance, game));
+	sandboxInstance.setLocalOverride("Game", sandbox.wrap(sandboxInstance, game));
+
+	sandboxInstance.setLocalOverride("workspace", sandbox.wrap(sandboxInstance, workspace));
+	sandboxInstance.setLocalOverride("Workspace", sandbox.wrap(sandboxInstance, workspace));
+
+	sandboxInstance.setLocalOverride("Instance", setmetatable({
+		new = (function(class, parent)
+			local parent = sandbox.getReal(sandboxInstance, parent);
+			if typeof(class) ~= "string" then
+				return error("invalid argument #1 to 'new' (string expected, got " .. typeof(class) .. ")", 2);
+			elseif typeof(parent) ~= "Instance" then
+				return error("invalid argument #2 to 'new' (Instance expected, got " .. typeof(parent) .. ")", 2);
+			end;
+
+			local success, object = pcall(function()
+				return Instance.new(class, sandbox.getReal(sandboxInstance, parent));
+			end);
+
+			if success then
+				table.insert(sandbox.CreatedInstances, object);
+			else
+				return error(object, 2);
+			end;
+
+			return object;
 		end),
-	});
+	}, {
+		__newindex = (function(self, ...) return error("Attempt to modify a readonly table", 2); end),
+		__metatable = "The metatable is locked",
+	}));
+
+	sandbox.setMethodOverride("Debris", "AddItem", function(self, object, time)
+    if typeof(object) ~= "Instance" then
+        return error("Unable to cast value to Object", 3);
+    end;
+
+    if sandbox.ProtectedClasses[object.ClassName] then
+      return error(object.ClassName .. " is protected", 3);
+    elseif not sandbox.PreventAccess[object] then
+      return Debris:AddItem(sandbox.getReal(sandboxInstance, object), time);
+    end;
+	end);
 
 	local Function, message = loadstring(config.Source, 'SB-Script');
 	if not Function then
@@ -63,13 +119,9 @@ spawn(function()
 		return error(message, 0);
 	else
 		-- Run the code inside the sandbox
-		setfenv(Function, metatable);
-		local success, message = pcall(function()
-			Function();
-		end);
-		
-		if not success then
-			return error(message, 0);
-		end;
+		local environment = sandboxInstance.environment;
+		setfenv(0, environment);
+		setfenv(1, environment);
+		setfenv(Function, environment)();
 	end;
 end);
