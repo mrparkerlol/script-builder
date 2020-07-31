@@ -11,5 +11,8 @@ This is a fully-featured script builder. Includes the following features, ready 
 
 The following dependencies are required in order to make the project work:
 
-- Rojo (https://github.com/Roblox/rojo)
 - Script Builder Backend (https://github.com/mrteenageparker/script-builder-backend)
+
+The following is only required to modify the source in this repository:
+
+- Rojo (https://github.com/Roblox/rojo)
