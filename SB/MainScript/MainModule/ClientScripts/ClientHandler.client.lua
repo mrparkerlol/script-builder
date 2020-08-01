@@ -9,12 +9,10 @@ local Players = game:GetService("Players");
 local ReplicatedStorage = game:GetService("ReplicatedStorage");
 local ScriptContext = game:GetService("ScriptContext");
 local ContextActionService = game:GetService("ContextActionService");
-local RunService = game:GetService("RunService");
 
 local PLACE_NAME = ReplicatedStorage:WaitForChild("SB_Config"):InvokeServer("PLACE_NAME");
 
 local LocalPlayer = Players.LocalPlayer;
-local Mouse = LocalPlayer:GetMouse();
 
 local TextLabel = Instance.new("TextLabel");
 TextLabel.BackgroundTransparency = 1;
@@ -23,8 +21,6 @@ TextLabel.Font = Enum.Font.SourceSans;
 TextLabel.FontSize = 6;
 TextLabel.TextXAlignment = Enum.TextXAlignment.Left;
 
-_G.fakeGTable = {};
-_G.fakeSharedTable = {};
 local hiddenItems = {};
 
 local indexedScripts = {};
@@ -33,8 +29,6 @@ local ConsoleGui = LocalPlayer.PlayerGui:WaitForChild("Console");
 local ConsoleMain = ConsoleGui:WaitForChild("Main");
 local CommandLine = ConsoleMain:WaitForChild("Command"):WaitForChild("CommandLine");
 local OutputFrame = ConsoleMain:WaitForChild("Output");
-
-local consoleMainSelected = false;
 
 local function handleOutput(message, color)
   local PrintText = TextLabel:Clone();
@@ -61,7 +55,6 @@ local function ConfigureGui()
   OutputFrame.ChildAdded:connect(function(child)
     if child.ClassName == "TextLabel" then
       child.Position = UDim2.new(0,0, 0,currentHeight + 10);
-      
       currentHeight = currentHeight + child.TextBounds.Y;
       if child.TextBounds.X > currentWidth then
         currentWidth = child.TextBounds.X
@@ -75,22 +68,6 @@ local function ConfigureGui()
 
       currentChildren = currentChildren + 1;
     end;
-  end);
-
-  ConsoleMain.InputBegan:Connect(function(inputObject)
-    local inputType = inputObject.UserInputType;
-    if inputType == Enum.UserInputType.MouseButton1 or inputType == Enum.UserInputType.Touch then
-      consoleMainSelected = true;
-    end;
-  end);
-
-  ConsoleMain.InputEnded:Connect(function(inputObject)
-    local inputType = inputObject.UserInputType;
-    if inputType == Enum.UserInputType.MouseButton1 or 
-        inputType == Enum.UserInputType.Touch or
-        inputObject.KeyCode == Enum.KeyCode.Quote then
-          consoleMainSelected = false;
-      end;
   end);
 
   handleOutput("Welcome to " .. PLACE_NAME .. "! Enjoy your stay here!", Color3.fromRGB(0, 255, 0));
@@ -208,20 +185,5 @@ setmetatable(shared, {
 
   __metatable = "This metatable is locked."
 });
-
-spawn(function()
-  while true do
-    repeat 
-      RunService.RenderStepped:wait();
-
-      -- Restore the UI to it's original position
-      -- to prevent the UI from disappearing from the screen
-      if ConsoleMain.Parent and ConsoleMain.Position.X.Offset > Mouse.ViewSizeX or ConsoleMain.Position.Y.Offset > Mouse.ViewSizeY then
-        ConsoleMain.Position = UDim2.new(0.1,0, 0.7,0);
-      end;
-    until consoleMainSelected;
-    ConsoleMain.Position = UDim2.new(0,Mouse.X, 0,Mouse.Y);
-  end;
-end);
 
 print("Initialized client handler");

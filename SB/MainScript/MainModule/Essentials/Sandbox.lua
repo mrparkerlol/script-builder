@@ -42,7 +42,6 @@ function Sandbox.new(scriptObject, environment)
 
   function sandboxInstance.setLocalOverride(index, value)
     assert(typeof(index) == "string", "Expected string as first argument to sandboxInstance.setLocalOverride");
-    assert(typeof(value) ~= nil, "Expected Variant as second argument to sandboxInstance.setLocalOverride");
     sandboxInstance.LocalOverrides[index] = value;
   end;
 

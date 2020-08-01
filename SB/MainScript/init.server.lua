@@ -1,3 +1,5 @@
+local require = require;
+
 local SB = require(script.MainModule)({
     API_URL = "https://rbxapi.mrparker.pw/uploadAsset.php", -- Required for locals to work
 });
@@ -15,8 +17,4 @@ SB.Sandbox.setMethodOverride("Player", "Explode", function(player)
         Explosion.Position = Position;
         Explosion.Parent = workspace;
     end;
-end);
-
-SB.Sandbox.setGlobalOverride("require", function(...)
-    return error("Require has been temporarily disabled", 0);
 end);

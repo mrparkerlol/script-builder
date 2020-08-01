@@ -43,6 +43,8 @@ local ClientToServerRemote, ClientToServerRemoteFunction;
 local function getConfig(_, arg)
     if arg == "PLACE_NAME" then
         return SB.Settings.PLACE_NAME;
+    elseif arg == "healthCheck" then
+        return "good";
     end;
 end;
 
@@ -115,14 +117,11 @@ function SB.runCode(player, type, source, parent)
             SandboxInstance = {},
         };
 
-        Script.Parent = parent or workspace;
-        Script.Disabled = false;
+        if parent ~= nil then
+            Script.Parent = parent;
+        end;
 
-        shared("Output", {
-            Owner = player,
-            Type = "general",
-            Message = "Ran server script."
-        });
+        Script.Disabled = false;
 
         return Script;
     elseif type == "Local" then
@@ -139,7 +138,7 @@ setmetatable(shared, {
             return SB.Sandbox;
         elseif arg == "runScript" then
             assert(typeof(args[1]) == "string", "Expected a string when calling shared(\"runScript\") arg #1");
-            assert(typeof(args[2]) == "Instance", "Expected a Instance when calling shared(\"runScript\") arg #2");
+            --assert(typeof(args[2]) == "Instance", "Expected a Instance when calling shared(\"runScript\") arg #2");
             assert(typeof(args[3]) == "Instance", "Expected a Instance when calling shared(\"runScript\") arg #3");
 
             local code, parent, player = args[1], args[2], args[3];
@@ -182,7 +181,7 @@ function SB.killScripts(player, command)
             SB.Sandbox.kill(tbl.Script);
         else
             SB.Sandbox.kill(tbl.Script);
-        end
+        end;
 
         -- Destroy the script object
         tbl.Script:Destroy();
@@ -193,11 +192,11 @@ end;
 function SB.handleCommand(player, commandString)
     local commonSub = commandString:sub(1, 2); -- Most commands rely on this specific sub - so cache it temporarily
     if commonSub == "c/" then
-        SB.runCode(player, "Server", commandString:sub(3));
+        SB.runCode(player, "Server", commandString:sub(3), workspace);
     elseif commonSub == "l/" then
         SB.runCode(player, "Local", commandString:sub(3));
     elseif commonSub == "h/" then
-        SB.runCode(player, "HttpServer", commandString:sub(3));
+        SB.runCode(player, "HttpServer", commandString:sub(3), workspace);
     elseif commandString:sub(1, 3) == "hl/" then
         SB.runCode(player, "HttpLocal", commandString:sub(4));
     elseif commonSub == "g/" then
