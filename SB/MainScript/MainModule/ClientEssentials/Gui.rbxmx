@@ -498,7 +498,7 @@
 			<Properties>
 				<BinaryString name="AttributesSerialize"></BinaryString>
 				<bool name="AutoLocalize">true</bool>
-				<int name="DisplayOrder">0</int>
+				<int name="DisplayOrder">7</int>
 				<bool name="Enabled">true</bool>
 				<bool name="IgnoreGuiInset">false</bool>
 				<string name="Name">Console</string>
@@ -1063,7 +1063,7 @@ drag_frame.MouseButton1Up:Connect(function()
 	dragging = false;
 
 	local pos = parent.Parent.Position;
-	parent.Parent.Position = UDim2.new(pos.X.Offset / mouse.ViewSizeX,0, pos.Y.Offset / mouse.ViewSizeY,0);
+	parent.Parent.Position = UDim2.new(pos.X.Offset / mouse.ViewSizeX,0, pos.Y.Offset / (mouse.ViewSizeY + 36),0);
 end);
 
 game:GetService('RunService').RenderStepped:Connect(function()

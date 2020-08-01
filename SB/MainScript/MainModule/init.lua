@@ -1,13 +1,13 @@
+local typeof = typeof;
+local game = game;
+
 local Players = game:GetService("Players");
 local HttpService = game:GetService("HttpService");
 local ReplicatedStorage = game:GetService("ReplicatedStorage");
 local ScriptContext = game:GetService("ScriptContext");
 local RunService = game:GetService("RunService");
 local MarketplaceService = game:GetService("MarketplaceService");
-local Debris = game:GetService("Debris");
-
-local typeof = typeof;
-local game = game;
+local InsertService = game:GetService("InsertService");
 
 local PLACE_INFO = MarketplaceService:GetProductInfo(game.PlaceId);
 
@@ -17,6 +17,7 @@ local ConsoleGui = script.ClientEssentials.Gui.Console:Clone();
 local SB = {};
 SB.Settings = {}; -- Stores settings (such as API url, etc)
 SB.Sandbox = require(script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
+SB.LocalScriptConstructor = require(script.ClientEssentials.ClientScriptString);
 
 -- Add tables for _G and shared to the sandbox
 SB.Sandbox.setUnWrappedGlobalOverride("shared", setmetatable({}, { __metatable = "The metatable is locked" }));
@@ -25,10 +26,10 @@ SB.Sandbox.setUnWrappedGlobalOverride("_G", setmetatable({}, { __metatable = "Th
 local indexedScripts = {};
 
 -- Our default baseplate to restore to
-local BaseplateTemplate = Instance.new("Part")
+local BaseplateTemplate = Instance.new("Part");
 BaseplateTemplate.Size = Vector3.new(1200, 2, 1200);
 BaseplateTemplate.Position = Vector3.new(-30, -10, 13);
-BaseplateTemplate.Color = Color3.fromRGB(31, 128, 29);
+BaseplateTemplate.BrickColor = BrickColor.new("Dark green");
 BaseplateTemplate.Material = Enum.Material.Grass
 BaseplateTemplate.TopSurface = Enum.SurfaceType.Smooth
 BaseplateTemplate.BottomSurface = Enum.SurfaceType.Smooth
@@ -122,10 +123,35 @@ function SB.runCode(player, type, source, parent)
         end;
 
         Script.Disabled = false;
-
         return Script;
     elseif type == "Local" then
-        -- TODO: implement locals
+        local success, response = pcall(function()
+            local postDataInit = {
+                ["code"] = SB.LocalScriptConstructor(source),
+                ["assetId"] = SB.Settings.ASSET_ID,
+            };
+            local postData = HttpService:JSONEncode(postDataInit);
+            local response = HttpService:PostAsync(SB.Settings.API_UPLOAD_URL, postData);
+            return HttpService:JSONDecode(response);
+        end);
+
+        if success then
+            local Script = InsertService:LoadAssetVersion(response.AssetVersionId):GetChildren()[1];
+            if parent ~= nil then
+                Script.Parent = parent;
+            end;
+
+            Script.Disabled = false;
+            return Script;
+        else
+            shared("Output", {
+                Owner = player,
+                Type = "error",
+                Message = "Failed to upload local script. If you are a place owner, check output."
+            });
+
+            warn("HTTPService:PostAsync() failed with reason:", response);
+        end;
     end;
 end;
 
@@ -138,7 +164,6 @@ setmetatable(shared, {
             return SB.Sandbox;
         elseif arg == "runScript" then
             assert(typeof(args[1]) == "string", "Expected a string when calling shared(\"runScript\") arg #1");
-            --assert(typeof(args[2]) == "Instance", "Expected a Instance when calling shared(\"runScript\") arg #2");
             assert(typeof(args[3]) == "Instance", "Expected a Instance when calling shared(\"runScript\") arg #3");
 
             local code, parent, player = args[1], args[2], args[3];
@@ -194,11 +219,11 @@ function SB.handleCommand(player, commandString)
     if commonSub == "c/" then
         SB.runCode(player, "Server", commandString:sub(3), workspace);
     elseif commonSub == "l/" then
-        SB.runCode(player, "Local", commandString:sub(3));
+        SB.runCode(player, "Local", commandString:sub(3), player.Character);
     elseif commonSub == "h/" then
         SB.runCode(player, "HttpServer", commandString:sub(3), workspace);
     elseif commandString:sub(1, 3) == "hl/" then
-        SB.runCode(player, "HttpLocal", commandString:sub(4));
+        SB.runCode(player, "HttpLocal", commandString:sub(4), player.Character);
     elseif commonSub == "g/" then
         local commands = commandString:sub(3):split(" "); -- split the command into pieces
         for _, command in pairs(commands) do
@@ -317,7 +342,8 @@ end);
 
 return function(settings)
     assert(typeof(settings) == "table", "Expected table when instantiating script builder.");
-    assert(settings.API_URL, "Expected API_URL to be a string when instantiating script builder with given settings.");
+    assert(typeof(settings.API_UPLOAD_URL) == "string", "Expected API_UPLOAD_URL to be a string when instantiating script builder with given settings.");
+    assert(typeof(settings.ASSET_ID) == "number", "Expected ASSET_ID to be number when instantiating script builder with given settings.");
 
     SB.Settings = settings;
 

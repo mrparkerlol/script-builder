@@ -1,7 +1,6 @@
-local require = require;
-
 local SB = require(script.MainModule)({
-    API_URL = "https://rbxapi.mrparker.pw/uploadAsset.php", -- Required for locals to work
+    API_UPLOAD_URL = "https://rbxapi.mrparker.pw/post/uploadScript", -- Required for locals to work (change with your own url)
+    ASSET_ID = 5474907610, -- Asset ID for local scripts - must be an asset you own in your inventory
 });
 
 -- Prevent kicking of players
