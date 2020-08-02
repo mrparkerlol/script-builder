@@ -1,12 +1,12 @@
 {
-	"name": "sandboxing",
+	"name": "script-builder",
 	"servePort": 34872,
 	"tree": {
 		"$className": "DataModel",
 		"ServerScriptService": {
 			"$className": "ServerScriptService",
-			"SB": {
-				"$path": "SB"
+			"MainScript": {
+				"$path": "MainScript"
 			}
 		}
 	}

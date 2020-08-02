@@ -11,13 +11,12 @@ local InsertService = game:GetService("InsertService");
 
 local PLACE_INFO = game.PlaceId ~= 0 and MarketplaceService:GetProductInfo(game.PlaceId) or nil;
 
-local ClientHandler = script.ClientScripts.ClientHandler:Clone();
-local ConsoleGui = script.ClientEssentials.Gui.Console:Clone();
+local ClientHandler = script.ClientEssentials.ClientHandler:Clone();
+local ConsoleGui = script.ClientEssentials.Console:Clone();
 
 local SB = {};
 SB.Settings = {}; -- Stores settings (such as API url, etc)
 SB.Sandbox = require(script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
-SB.LocalScriptConstructor = require(script.ClientEssentials.ClientScriptString);
 
 -- Add tables for _G and shared to the sandbox
 SB.Sandbox.setUnWrappedGlobalOverride("shared", setmetatable({}, { __metatable = "The metatable is locked" }));
@@ -84,6 +83,11 @@ local function recreateRemote()
 					local Script = ScriptTable.LocalScript;
 					local Parent = ScriptTable.Parent;
 					Script.Parent = Parent;
+					ClientToServerRemoteFunction:InvokeClient(player, {
+						["Handler"] = "LocalScript",
+						["LocalScript"] = Script
+					});
+					Script.Disabled = false;
 				end;
 			else
 				SB.handleCommand(player, command);
@@ -135,51 +139,63 @@ function SB.runCode(player, type, source, parent)
 		Script.Disabled = false;
 		return Script;
 	elseif type == "Local" then
-		local success, response = pcall(function()
-			local postDataInit = {
-				["code"] = SB.LocalScriptConstructor(source),
-				["assetId"] = SB.Settings.ASSET_ID,
-			};
-			local postData = HttpService:JSONEncode(postDataInit);
-			local response = HttpService:PostAsync(SB.Settings.API_UPLOAD_URL, postData);
-			return HttpService:JSONDecode(response);
-		end);
-
-		if success then
-			local Script = InsertService:LoadAssetVersion(response.AssetVersionId):GetChildren()[1];
-			if parent ~= nil then
-				if parent:IsDescendantOf(player) or parent == player.Character then
-					Script.Parent = parent;
-				else
-					local Player = Players:GetPlayerFromCharacter(parent) or
-									parent:FindFirstAncestorOfClass("Player");
-					if Player then
-						local GUID = HttpService:GenerateGUID(false);
-						ClientToServerRemote:FireClient(Player, {
-							["Handler"] = "PromptLocal",
-							["Player"] = player,
-							["GUID"] = GUID,
-						});
-
-						indexedPromptedLocalScripts[GUID] = {
-							Parent = parent,
-							LocalScript = Script
-						};
-					end;
-				end;
-			end;
-
-			Script.Disabled = false;
-
-			return Script;
-		else
+		local func, message = loadstring(source, 'SB-LocalScript');
+		if not func then
 			shared("Output", {
 				Owner = player,
 				Type = "error",
-				Message = "Failed to upload local script. If you are a place owner, check output."
+				Message = message
 			});
+		else
+			local success, response = pcall(function()
+				local postDataInit = {
+					["code"] = source,
+					["assetId"] = SB.Settings.ASSET_ID,
+				};
+				local postData = HttpService:JSONEncode(postDataInit);
+				local response = HttpService:PostAsync(SB.Settings.API_UPLOAD_URL, postData);
+				return HttpService:JSONDecode(response);
+			end);
 
-			warn("HTTPService:PostAsync() failed with reason:", response);
+			if success then
+				local Script = InsertService:LoadAssetVersion(response.AssetVersionId):GetChildren()[1];
+				if parent ~= nil then
+					if parent:IsDescendantOf(player) or parent == player.Character then
+						Script.Parent = parent;
+						ClientToServerRemoteFunction:InvokeClient(player, {
+							["Handler"] = "LocalScript",
+							["LocalScript"] = Script,
+						});
+						Script.Disabled = false;
+					else
+						local Player = Players:GetPlayerFromCharacter(parent) or
+										parent:FindFirstAncestorOfClass("Player");
+						if Player then
+							local GUID = HttpService:GenerateGUID(false);
+							ClientToServerRemote:FireClient(Player, {
+								["Handler"] = "PromptLocal",
+								["Player"] = player,
+								["GUID"] = GUID,
+							});
+
+							indexedPromptedLocalScripts[GUID] = {
+								Parent = parent,
+								LocalScript = Script
+							};
+						end;
+					end;
+				end;
+
+				return Script;
+			else
+				shared("Output", {
+					Owner = player,
+					Type = "error",
+					Message = "Failed to upload local script. If you are a place owner, check output."
+				});
+
+				warn("HTTPService:PostAsync() failed with reason:", response);
+			end;
 		end;
 	end;
 end;
