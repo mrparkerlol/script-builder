@@ -24,49 +24,63 @@ spawn(function()
 	local sandboxInstance = sandbox.new(script, getfenv());
 
 	sandboxInstance.setLocalOverride("warn", function(...)
-			-- Make the args a table
-			local args = {...};
+		-- Make the args a table
+		local args = {...};
 
-			-- Iterate through the arguments, convert them to a string
-			for i=1, #args do
-					args[i] = tostring(args[i]);
-			end;
+		-- Iterate through the arguments, convert them to a string
+		for i=1, #args do
+			args[i] = tostring(args[i]);
+		end;
 
-			-- Concatenate the strings together,
-			-- using a space as a delimiter
-			local printString = table.concat(args, " ");
+		-- Concatenate the strings together,
+		-- using a space as a delimiter
+		local printString = table.concat(args, " ");
 
-			-- Send the string to the output
-			shared("Output", {
-					Owner = config.Owner,
-					Type = "warn",
-					Message = printString
-			});
+		-- Send the string to the output
+		shared("Output", {
+			Owner = config.Owner,
+			Type = "warn",
+			Message = printString
+		});
 	end);
 
 	sandboxInstance.setLocalOverride("print", function(...)
-			-- Make the args a table
-			local args = {...};
+		-- Make the args a table
+		local args = {...};
 
-			-- Iterate through the arguments, convert them to a string
-			for i=1, #args do
-					args[i] = tostring(args[i]);
-			end;
+		-- Iterate through the arguments, convert them to a string
+		for i=1, #args do
+			args[i] = tostring(args[i]);
+		end;
 
-			-- Concatenate the strings together,
-			-- using a space as a delimiter
-			local printString = table.concat(args, " ");
+		-- Concatenate the strings together,
+		-- using a space as a delimiter
+		local printString = table.concat(args, " ");
 
-			-- Send the string to the output
-			shared("Output", {
-					Owner = config.Owner,
-					Type = "print",
-					Message = printString
-			});
+		-- Send the string to the output
+		shared("Output", {
+			Owner = config.Owner,
+			Type = "print",
+			Message = printString
+		});
 	end);
 
 	sandboxInstance.setLocalOverride("NS", function(source, parent)
 		return sandbox.wrap(sandboxInstance, shared("runScript", source, sandbox.getReal(sandboxInstance, parent) or nil, config.Owner));
+	end);
+
+	sandboxInstance.setLocalOverride("NLS", function(source, parent)
+		return sandbox.wrap(sandboxInstance, shared("runLocal", source, sandbox.getReal(sandboxInstance, parent) or nil, config.Owner));
+	end);
+
+	sandboxInstance.setLocalOverride("typeof", function(object)
+		local real = sandbox.getReal(sandboxInstance, object);
+		return typeof(real);
+	end);
+
+	sandboxInstance.setLocalOverride("type", function(object)
+		local real = sandbox.getReal(sandboxInstance, object);
+		return type(real);
 	end);
 
 	sandboxInstance.setLocalOverride("game", sandbox.wrap(sandboxInstance, game));
@@ -75,6 +89,7 @@ spawn(function()
 	sandboxInstance.setLocalOverride("workspace", sandbox.wrap(sandboxInstance, workspace));
 	sandboxInstance.setLocalOverride("Workspace", sandbox.wrap(sandboxInstance, workspace));
 	sandboxInstance.setLocalOverride("script", sandbox.wrap(sandboxInstance, script));
+	sandboxInstance.setLocalOverride("owner", sandbox.wrap(sandboxInstance, config.Owner));
 
 	sandboxInstance.setLocalOverride("Instance", setmetatable({
 		new = (function(class, parent)
@@ -103,23 +118,23 @@ spawn(function()
 	}));
 
 	sandbox.setMethodOverride("Debris", "AddItem", function(self, object, time)
-    if typeof(object) ~= "Instance" then
-        return error("Unable to cast value to Object", 3);
-    end;
+		if typeof(object) ~= "Instance" then
+			return error("Unable to cast value to Object", 3);
+		end;
 
-    if sandbox.ProtectedClasses[object.ClassName] then
-      return error(object.ClassName .. " is protected", 3);
-    elseif not sandbox.PreventAccess[object] then
-      return Debris:AddItem(sandbox.getReal(sandboxInstance, object), time);
-    end;
+		if sandbox.ProtectedClasses[object.ClassName] then
+			return error(object.ClassName .. " is protected", 3);
+		elseif not sandbox.PreventAccess[object] then
+			return Debris:AddItem(sandbox.getReal(sandboxInstance, object), time);
+		end;
 	end);
 
 	sandboxInstance.setLocalOverride("require", function(asset)
-    if typeof(asset) == "number" then
-      return error("Require has been temporarily disabled", 0);
-    else
-      return require(sandbox.getReal(sandboxInstance, asset));
-    end;
+		if typeof(asset) == "number" then
+			return error("Require has been temporarily disabled", 0);
+		else
+			return require(sandbox.getReal(sandboxInstance, asset));
+		end;
 	end);
 
 	local Function, message = loadstring(config.Source, 'SB-Script');
