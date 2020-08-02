@@ -9,7 +9,7 @@ local RunService = game:GetService("RunService");
 local MarketplaceService = game:GetService("MarketplaceService");
 local InsertService = game:GetService("InsertService");
 
-local PLACE_INFO = MarketplaceService:GetProductInfo(game.PlaceId);
+local PLACE_INFO = game.PlaceId ~= 0 and MarketplaceService:GetProductInfo(game.PlaceId) or nil;
 
 local ClientHandler = script.ClientScripts.ClientHandler:Clone();
 local ConsoleGui = script.ClientEssentials.Gui.Console:Clone();
@@ -402,7 +402,7 @@ return function(settings)
 	SB.Settings = settings;
 
 	-- Configure settings internally
-	SB.Settings.PLACE_NAME = PLACE_INFO.Name or "Script Builder";
+	SB.Settings.PLACE_NAME = PLACE_INFO and PLACE_INFO.Name or "Script Builder";
 
 	return SB;
 end;
