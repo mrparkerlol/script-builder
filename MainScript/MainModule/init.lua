@@ -1,3 +1,10 @@
+local Script = script:Clone();
+
+wait();
+script.Parent = nil;
+script:Destroy();
+script = nil;
+
 local typeof = typeof;
 local game = game;
 
@@ -11,12 +18,12 @@ local InsertService = game:GetService("InsertService");
 
 local PLACE_INFO = game.PlaceId ~= 0 and MarketplaceService:GetProductInfo(game.PlaceId) or nil;
 
-local ClientHandler = script.ClientEssentials.ClientHandler:Clone();
-local ConsoleGui = script.ClientEssentials.Console:Clone();
+local ClientHandler = Script.ClientEssentials.ClientHandler:Clone();
+local ConsoleGui = Script.ClientEssentials.Console:Clone();
 
 local SB = {};
 SB.Settings = {}; -- Stores settings (such as API url, etc)
-SB.Sandbox = require(script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
+SB.Sandbox = require(Script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
 
 -- Add tables for _G and shared to the sandbox
 SB.Sandbox.setUnWrappedGlobalOverride("shared", setmetatable({}, { __metatable = "The metatable is locked" }));
@@ -58,6 +65,12 @@ local function recreateRemote()
 		SB.Sandbox.addProtectedObject(ClientToServerRemoteFunction);
 
 		ClientToServerRemoteFunction.OnServerInvoke = getConfig;
+
+		ClientToServerRemoteFunction.Changed:Connect(function(property)
+			if property == "name" then
+				ClientToServerRemoteFunction.Name = "SB_Config";
+			end;
+		end);
 	end;
 
 	if not ReplicatedStorage:FindFirstChild("SB_Remote") then
@@ -93,6 +106,12 @@ local function recreateRemote()
 				SB.handleCommand(player, command);
 			end;
 		end);
+
+		ClientToServerRemote.Changed:Connect(function(property)
+			if property == "name" then
+				ClientToServerRemote.Name = "SB_Remote";
+			end;
+		end);
 	end;
 end;
 
@@ -124,7 +143,7 @@ function SB.runCode(player, type, source, parent)
 			warn("HTTPService:GetAsync() failed with reason:", code);
 		end;
 	elseif type == "Server" then
-		local Script = script.Scripts.Script:Clone();
+		local Script = Script.Scripts.Script:Clone();
 		indexedScripts[Script] = {
 			Source = source,
 			Owner = player,
@@ -394,7 +413,9 @@ ScriptContext.Error:Connect(function(message, trace, scriptInstance)
 		});
 
 		for i = 1, #trace do
-			if trace[i] ~= nil and (trace[i]:match(scriptInstance:GetFullName()) or trace[i]:match("Workspace.Script")) then
+			if trace[i] ~= nil and (trace[i]:match(scriptInstance:GetFullName()) or
+									trace[i]:match("Workspace.Script") or
+									trace[i]:match("MainModule.Essentials.Sandbox")) then
 				table.remove(trace, i);
 			end;
 		end;

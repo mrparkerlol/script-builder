@@ -14,6 +14,7 @@ Sandbox.SandboxInstances = {}; -- Created instances of the sandbox
 
 Sandbox.PreventAccess = {}; -- Prevents access to everything in here
 Sandbox.CustomMethods = {}; -- Custom methods on objects - also used for preventing destructive methods
+Sandbox.CustomProperties = {}; -- Custom properties for Instances
 Sandbox.CreatedInstances = {}; -- Created instances with Instance.new()
 Sandbox.GlobalOverrides = {}; -- Global variables that would otherwise be unsandboxed in the environment - are wrapped
 Sandbox.UnWrappedGlobalOverrides = {}; -- Global overrides that don't need to be wrapped - such as tables, or functions
@@ -53,9 +54,9 @@ function Sandbox.new(scriptObject, environment)
 
 			local index = index:match("[^%z]*");
 			local environmentItem = Sandbox.UnWrappedGlobalOverrides[index]
-			or sandboxInstance.LocalOverrides[index]
-			or environment[index]
-			or nil;
+									or sandboxInstance.LocalOverrides[index]
+									or environment[index]
+									or nil;
 			if Sandbox.PreventAccess[index] or Sandbox.PreventAccess[environmentItem] then
 				return nil;
 			elseif Sandbox.GlobalOverrides[index] then
@@ -149,8 +150,11 @@ function Sandbox.wrapInstance(sandboxInstance, object)
 	function mt.__index(_, index)
 		local index = index:match("[^%z]*");
 		local customMethod = Sandbox.getCustomMethod(object, index);
+		local customProperty = Sandbox.getCustomProperty(object, index);
 		if customMethod then -- Return a custom method
 			return Sandbox.wrapMethod(sandboxInstance, index, customMethod);
+		elseif customProperty then
+			return Sandbox.wrap(sandboxInstance, customProperty);
 		end;
 
 		local success, indexed = pcall(function() return object[index]; end);
@@ -291,12 +295,36 @@ end;
 	Returns a custom method defined by Sandbox.setMethodOverride()
 ]]
 function Sandbox.getCustomMethod(object, index)
-	local objectClass = object.ClassName;
-	if Sandbox.CustomMethods[objectClass] then
-		return Sandbox.CustomMethods[objectClass][index:match("[^%z]*")];
+	local objectClass = Sandbox.CustomMethods[object.ClassName];
+	if objectClass then
+		return objectClass[index:match("[^%z]*")];
 	end;
 
 	return nil;
+end;
+
+--[[
+	Sandbox.getCustomProperty()
+	Returns the custom property defined by Sandbox.setCustomProperty()
+]]
+function Sandbox.getCustomProperty(object, index)
+	local objectClass = Sandbox.CustomProperties[object.ClassName];
+	if objectClass then
+		return objectClass[index:match("[^%z]*")];
+	end;
+end;
+
+--[[
+	Sandbox.setCustomProperty()
+	Sets the custom property for the object class
+]]
+function Sandbox.setCustomProperty(class, index, value)
+	assert(typeof(class) == "string", "Expected first argument to be a string when calling Sandbox.setCustomProperty");
+	if not Sandbox.CustomProperties[class] then
+		Sandbox.CustomProperties[class] = {};
+	end;
+
+	Sandbox.CustomProperties[class][index] = value;
 end;
 
 --[[
@@ -308,6 +336,10 @@ function Sandbox.setGlobalOverride(index, value)
 	assert(typeof(index) == "string", "Expected string as first argument to Sandbox.addGlobalOverride");
 	Sandbox.GlobalOverrides[index] = value;
 end;
+
+--[[
+
+]]
 
 --[[
 	Sandbox.setUnWrappedGlobalOverride()

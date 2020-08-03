@@ -90,6 +90,7 @@ spawn(function()
 	sandboxInstance.setLocalOverride("Workspace", sandbox.wrap(sandboxInstance, workspace));
 	sandboxInstance.setLocalOverride("script", sandbox.wrap(sandboxInstance, script));
 	sandboxInstance.setLocalOverride("owner", sandbox.wrap(sandboxInstance, config.Owner));
+	sandbox.setCustomProperty("Script", "owner", config.Owner);
 
 	sandboxInstance.setLocalOverride("Instance", setmetatable({
 		new = (function(class, parent)
@@ -129,13 +130,13 @@ spawn(function()
 		end;
 	end);
 
-	sandboxInstance.setLocalOverride("require", function(asset)
+	--[[sandboxInstance.setLocalOverride("require", function(asset)
 		if typeof(asset) == "number" then
 			return error("Require has been temporarily disabled", 0);
 		else
 			return require(sandbox.getReal(sandboxInstance, asset));
 		end;
-	end);
+	end);]]
 
 	local Function, message = loadstring(config.Source, 'SB-Script');
 	if not Function then
