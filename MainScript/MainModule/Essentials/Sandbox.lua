@@ -1,7 +1,7 @@
 --[[
-Written by Jacob (@monofur, https://github.com/mrteenageparker)
+	Written by Jacob (@monofur, https://github.com/mrteenageparker)
 
-Provides sandboxing for the scriptbuilder.
+	Provides sandboxing for the scriptbuilder.
 ]]
 
 local typeof = typeof;
@@ -52,7 +52,7 @@ function Sandbox.new(scriptObject, environment)
 				return error("Script disabled.", 0);
 			end;
 
-			local index = index:match("[^%z]*");
+			index = index:match("[^%z]*");
 			local environmentItem = Sandbox.UnWrappedGlobalOverrides[index]
 									or sandboxInstance.LocalOverrides[index]
 									or environment[index]
@@ -89,6 +89,10 @@ function Sandbox.kill(scriptInstance)
 		Sandbox.SandboxInstances[scriptInstance].Killed = true;
 		Sandbox.SandboxInstances[sandboxInstance] = nil;
 		Sandbox.SandboxInstances[scriptInstance] = nil;
+
+		delay(1, function()
+			scriptInstance:Destroy();
+		end);
 	end;
 end;
 
@@ -336,10 +340,6 @@ function Sandbox.setGlobalOverride(index, value)
 	assert(typeof(index) == "string", "Expected string as first argument to Sandbox.addGlobalOverride");
 	Sandbox.GlobalOverrides[index] = value;
 end;
-
---[[
-
-]]
 
 --[[
 	Sandbox.setUnWrappedGlobalOverride()

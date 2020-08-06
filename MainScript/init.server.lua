@@ -1,5 +1,5 @@
 local SB = require(script.MainModule)({
-    API_UPLOAD_URL = "https://rbxapi.mrparker.pw/post/uploadScript", -- Required for locals to work (change with your own url)
+	API_BASE_URL = "https://rbxapi.mrparker.pw", -- Base API url for the backend
     ASSET_ID = 5474907610, -- Asset ID for local scripts - must be an asset you own in your inventory
 });
 

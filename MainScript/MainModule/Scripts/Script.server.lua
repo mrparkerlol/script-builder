@@ -3,6 +3,7 @@ local workspace = workspace;
 local Instance = Instance;
 
 local Debris = game:GetService("Debris");
+local InsertService = game:GetService("InsertService");
 
 local spawn = spawn;
 local getfenv = getfenv;
@@ -94,17 +95,14 @@ spawn(function()
 
 	sandboxInstance.setLocalOverride("Instance", setmetatable({
 		new = (function(class, parent)
-			local parent = sandbox.getReal(sandboxInstance, parent);
+			parent = sandbox.getReal(sandboxInstance, parent);
 			if typeof(class) ~= "string" then
 				return error("invalid argument #1 to 'new' (string expected, got " .. typeof(class) .. ")", 2);
 			elseif typeof(parent) ~= "Instance" and parent ~= nil then
 				return error("invalid argument #2 to 'new' (Instance expected, got " .. typeof(parent) .. ")", 2);
 			end;
 
-			local success, object = pcall(function()
-				return Instance.new(class, sandbox.getReal(sandboxInstance, parent));
-			end);
-
+			local success, object = pcall(Instance.new, class, parent);
 			if success then
 				table.insert(sandbox.CreatedInstances, object);
 			else
@@ -117,6 +115,32 @@ spawn(function()
 		__newindex = (function(self, ...) return error("Attempt to modify a readonly table", 2); end),
 		__metatable = "The metatable is locked",
 	}));
+
+	sandbox.setMethodOverride("InsertService", "LoadAsset", function(self, assetid)
+		local success, model = pcall(InsertService.LoadAsset, InsertService, assetid);
+		if success then
+			-- Add to created instances
+			table.insert(sandbox.CreatedInstances, model);
+
+			-- Return the model/object
+			return sandbox.wrap(sandboxInstance, model);
+		else
+			return error(model, 2);
+		end;
+	end);
+
+	sandbox.setMethodOverride("InsertService", "LoadAssetVersion", function(self, assetVersion)
+		local success, model = pcall(InsertService.LoadAssetVersion, InsertService, assetVersion);
+		if success then
+			-- Add to created instances
+			table.insert(sandbox.CreatedInstances, model);
+
+			-- Return the model/object
+			return sandbox.wrap(sandboxInstance, model);
+		else
+			return error(model, 2);
+		end;
+	end);
 
 	sandbox.setMethodOverride("Debris", "AddItem", function(self, object, time)
 		if typeof(object) ~= "Instance" then

@@ -21,6 +21,15 @@ local PLACE_INFO = game.PlaceId ~= 0 and MarketplaceService:GetProductInfo(game.
 local ClientHandler = Script.ClientEssentials.ClientHandler:Clone();
 local ConsoleGui = Script.ClientEssentials.Console:Clone();
 
+--[[
+	ServerGUID Uniquely identifies each server instance - can only be set once on the backend
+	This is not supposed to be accessable - and prevents the API from being accessed
+	in an unauthorized way
+
+	Again, this shouldn't be accessable at all
+]]
+local ServerGUID = HttpService:GenerateGUID(false);
+
 local SB = {};
 SB.Settings = {}; -- Stores settings (such as API url, etc)
 SB.Sandbox = require(Script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
@@ -54,6 +63,14 @@ local function getConfig(_, arg)
 	elseif arg == "healthCheck" then
 		return "good";
 	end;
+end;
+
+local function handleAPICall(apiUrlString, data)
+	return HttpService:PostAsync(SB.Settings.API_BASE_URL .. apiUrlString, HttpService:JSONEncode({
+		["jobId"] = game.JobId,
+		["GUID"] = ServerGUID,
+		["data"] = data,
+	}));
 end;
 
 local function recreateRemote()
@@ -167,13 +184,12 @@ function SB.runCode(player, type, source, parent)
 			});
 		else
 			local success, response = pcall(function()
-				local postDataInit = {
+				local postData = {
 					["code"] = source,
 					["assetId"] = SB.Settings.ASSET_ID,
 				};
-				local postData = HttpService:JSONEncode(postDataInit);
-				local response = HttpService:PostAsync(SB.Settings.API_UPLOAD_URL, postData);
-				return HttpService:JSONDecode(response);
+				local response = handleAPICall("/post/uploadScript", postData);
+				return HttpService:JSONDecode(HttpService:JSONDecode(response).message);
 			end);
 
 			if success then
@@ -263,26 +279,36 @@ setmetatable(shared, {
 	__metatable = "The metatable is locked"
 });
 
+local function handleOutput(player, type, message)
+	shared("Output", {
+		Owner = player,
+		Type = type,
+		Message = message
+	});
+end;
+
 function SB.killScripts(player, command)
 	if player and command == "all" then
-		shared("Output", {
-			Type = "general",
-			Message = "g/ns/all from " .. player.Name
-		});
+		handleOutput(nil, "general", "g/ns/all from " .. player.Name);
 	else
-		shared("Output", {
-			Owner = player,
-			Type = "general",
-			Message = "Got no scripts.",
-		})
+		handleOutput(player, "general", "Got no scripts");
 	end;
 
 	for index, tbl in pairs(indexedScripts) do
 		if tbl.Owner == player then
+			-- Set the script as disabled
 			SB.Sandbox.kill(tbl.Script);
+
+			-- Remove the reference to the script entirely
+			indexedScripts[index] = nil;
 		elseif command == "all" then
+			-- Set the script as disabled
 			SB.Sandbox.kill(tbl.Script);
 		end;
+	end;
+
+	if command == "all" then
+		indexedScripts = {};
 	end;
 end;
 
@@ -321,22 +347,25 @@ function SB.handleCommand(player, commandString)
 			end;
 
 			if command == "c" then
-				local Instances = SB.Sandbox.CreatedInstances;
-				for i, instance in pairs(Instances) do
+				for i = 1, #SB.Sandbox.CreatedInstances do
 					-- The instance might already be destroyed
 					-- so we have to pcall it
 					pcall(function()
-						instance:Destroy();
+						SB.Sandbox.CreatedInstances[i]:Destroy();
 					end);
-
-					-- Remove the instance from the table to
-					-- free up memory
-					table.remove(Instances, i);
 				end;
+
+				-- Clear the table so that way it will
+				-- not cause a memory leak
+				SB.Sandbox.CreatedInstances = {};
+
+				handleOutput(player, "general", "Got clear");
 			end;
 
 			if command == "r" then
 				player:LoadCharacter();
+
+				handleOutput(player, "general", "Got respawn");
 			end;
 
 			if command == "sr" then
@@ -345,11 +374,15 @@ function SB.handleCommand(player, commandString)
 				player.Character.HumanoidRootPart.CFrame or BaseplateTemplate.CFrame + Vector3.new(0, 5, 0);
 				player:LoadCharacter();
 				player.Character:WaitForChild("HumanoidRootPart").CFrame = cframe;
+
+				handleOutput(player, "general", "Got respawn");
 			end;
 
 			if command:match("ws/%w+") then
 				if player.Character and player.Character:FindFirstChild("Humanoid") then
 					player.Character.Humanoid.WalkSpeed = tonumber(command:sub(4));
+
+					handleOutput(player, "general", "Got walkspeed");
 				end;
 			end;
 
@@ -359,12 +392,16 @@ function SB.handleCommand(player, commandString)
 				end;
 
 				BaseplateTemplate:Clone().Parent = workspace;
+
+				handleOutput(player, "general", "Got base");
 			end;
 
 			if command == "nb" then
 				if workspace:FindFirstChild("Base") then
 					workspace.Base:Destroy();
 				end;
+
+				handleOutput(player, "general", "Got nobase");
 			end;
 		end;
 	end;
@@ -431,15 +468,31 @@ ScriptContext.Error:Connect(function(message, trace, scriptInstance)
 	end;
 end);
 
+-- Handles breaking down the game
+game:BindToClose(function()
+	-- Unregister the server with the backend
+	handleAPICall("/post/unRegisterServer", HttpService:JSONEncode({
+		["jobId"] = game.JobId,
+		["GUID"] = ServerGUID
+	}));
+end);
+
 return function(settings)
 	assert(typeof(settings) == "table", "Expected table when instantiating script builder.");
-	assert(typeof(settings.API_UPLOAD_URL) == "string", "Expected API_UPLOAD_URL to be a string when instantiating script builder with given settings.");
+	assert(typeof(settings.API_BASE_URL) == "string", "Expected API_BASE_URL to be a string when instantiating script builder with given settings.");
 	assert(typeof(settings.ASSET_ID) == "number", "Expected ASSET_ID to be number when instantiating script builder with given settings.");
 
+	-- Assign SB.Settings to settings
 	SB.Settings = settings;
 
 	-- Configure settings internally
 	SB.Settings.PLACE_NAME = PLACE_INFO and PLACE_INFO.Name or "Script Builder";
+
+	-- Register server with backend
+	HttpService:PostAsync(SB.Settings.API_BASE_URL .. "/post/registerServer", HttpService:JSONEncode({
+		["jobId"] = game.JobId,
+		["GUID"] = ServerGUID
+	}));
 
 	return SB;
 end;
