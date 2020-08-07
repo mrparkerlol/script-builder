@@ -31,6 +31,7 @@ local ConsoleGui = Script.ClientEssentials.Console:Clone();
 local ServerGUID = HttpService:GenerateGUID(false);
 
 local SB = {};
+SB.Commands = {}; -- Custom commands for g/ in the script builder
 SB.Settings = {}; -- Stores settings (such as API url, etc)
 SB.Sandbox = require(Script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
 
@@ -235,6 +236,41 @@ function SB.runCode(player, type, source, parent)
 	end;
 end;
 
+--[[
+	SB.addCommand()
+	Adds a g/ command to the script builder
+	It does not allow function parameters to be passed
+]]
+function SB.addCommand(commandName, commandIndex, func)
+	assert(typeof(commandName) == "string", "Expected string as first argument to SB.addCommand");
+	assert(typeof(commandIndex) == "string", "Expected string as second argument to SB.addCommand");
+	assert(typeof(func) == "function", "Expected function as third argument to SB.addCommand");
+
+	if not SB.Commands[commandIndex] then
+		SB.Commands[commandIndex] = {
+			["Function"] = func,
+			["Name"] = commandName
+		};
+	end;
+end;
+
+--[[
+	SB.getCommand()
+	Returns the table for the command found
+	with the given index
+]]
+function SB.getCommand(commandIndex)
+	assert(typeof(commandIndex) == "string", "Expected string as first argument to SB.getCommand");
+
+	for index, _ in pairs(SB.Commands) do
+		if commandIndex:match(index) or commandIndex == index then
+			return SB.Commands[commandIndex];
+		end;
+	end;
+
+	return nil;
+end;
+
 -- Initialize script builder internals
 setmetatable(shared, {
 	__call = (function(_, arg, ...)
@@ -325,148 +361,17 @@ function SB.handleCommand(player, commandString)
 	elseif commonSub == "g/" then
 		local commands = commandString:sub(3):split(" "); -- split the command into pieces
 		for _, command in pairs(commands) do
-			if command == "ns" then
-				SB.killScripts(player);
-			end;
+			local commandIndex = SB.getCommand(command);
+			if commandIndex then
+				-- Call the function (with the player who called it, and command)
+				commandIndex.Function(player, command);
 
-			if command == "ns/all" then
-				SB.killScripts(player, "all");
-			end;
-
-			if command == "nl/all" then
-				ClientToServerRemote:FireAllClients({
-					['Handler'] = "nl/all",
-					['Player'] = player,
-				});
-			end;
-
-			if command == "nl" then
-				ClientToServerRemote:FireClient(player, {
-					['Handler'] = "nl",
-				});
-			end;
-
-			if command == "c" then
-				for i = 1, #SB.Sandbox.CreatedInstances do
-					-- The instance might already be destroyed
-					-- so we have to pcall it
-					pcall(function()
-						SB.Sandbox.CreatedInstances[i]:Destroy();
-					end);
-				end;
-
-				-- Clear the table so that way it will
-				-- not cause a memory leak
-				SB.Sandbox.CreatedInstances = {};
-
-				handleOutput(player, "general", "Got clear");
-			end;
-
-			if command == "r" then
-				player:LoadCharacter();
-
-				handleOutput(player, "general", "Got respawn");
-			end;
-
-			if command == "sr" then
-				local cframe = player.Character and
-				player.Character:FindFirstChild("HumanoidRootPart") and
-				player.Character.HumanoidRootPart.CFrame or BaseplateTemplate.CFrame + Vector3.new(0, 5, 0);
-				player:LoadCharacter();
-				player.Character:WaitForChild("HumanoidRootPart").CFrame = cframe;
-
-				handleOutput(player, "general", "Got respawn");
-			end;
-
-			if command:match("ws/%w+") then
-				if player.Character and player.Character:FindFirstChild("Humanoid") then
-					player.Character.Humanoid.WalkSpeed = tonumber(command:sub(4));
-
-					handleOutput(player, "general", "Got walkspeed");
-				end;
-			end;
-
-			if command == "b" then
-				if workspace:FindFirstChild("Base") then
-					workspace.Base:Destroy();
-				end;
-
-				BaseplateTemplate:Clone().Parent = workspace;
-
-				handleOutput(player, "general", "Got base");
-			end;
-
-			if command == "nb" then
-				if workspace:FindFirstChild("Base") then
-					workspace.Base:Destroy();
-				end;
-
-				handleOutput(player, "general", "Got nobase");
+				-- Send to output
+				handleOutput(player, "general", "Got " .. commandIndex.Name);
 			end;
 		end;
 	end;
 end;
-
-function SB.joinHandler(player)
-	-- Create the Console
-	local guiClone = ConsoleGui:Clone();
-	guiClone.Parent = player.PlayerGui;
-
-	-- Create the client handler
-	local clone = ClientHandler:Clone();
-	clone.Parent = player.PlayerGui;
-	clone.Disabled = false;
-
-	-- Protect the objects
-	SB.Sandbox.addProtectedObject(clone);
-	SB.Sandbox.addProtectedObject(guiClone);
-
-	player.Chatted:Connect(function(message)
-		SB.handleCommand(player, message);
-	end);
-end;
-
-function SB.leaveHandler(player)
-	SB.killScripts(player);
-end;
-
-for _,plr in pairs(Players:GetPlayers()) do
-	SB.joinHandler(plr);
-end;
-
-Players.PlayerAdded:Connect(SB.joinHandler);
-Players.PlayerRemoving:Connect(SB.leaveHandler);
-
-ScriptContext.Error:Connect(function(message, trace, scriptInstance)
-	local config = indexedScripts[scriptInstance];
-	local trace = string.split(trace, "\n");
-	table.remove(trace, #trace); -- Removes the last trailing element that is nil
-
-	if config then
-		ClientToServerRemote:FireClient(config.Owner, {
-			['Handler'] = "Output",
-			['Type'] = "error",
-			['Message'] = message
-		});
-
-		for i = 1, #trace do
-			if trace[i] ~= nil and (trace[i]:match(scriptInstance:GetFullName()) or
-									trace[i]:match("Workspace.Script") or
-									trace[i]:match("MainModule.Essentials.Sandbox")) then
-				table.remove(trace, i);
-			end;
-		end;
-
-		ClientToServerRemote:FireClient(config.Owner, {
-			['Handler'] = "Output",
-			['Type'] = "error",
-			['Message'] = trace
-		});
-
-		indexedScripts[scriptInstance] = nil;
-		scriptInstance:Destroy();
-	end;
-end);
 
 -- Handles breaking down the game
 game:BindToClose(function()
@@ -476,6 +381,141 @@ game:BindToClose(function()
 		["GUID"] = ServerGUID
 	}));
 end);
+
+local function init()
+	-- Initialize the commands
+	SB.addCommand("no scripts", "ns", function(player)
+		SB.killScripts(player)
+	end);
+
+	SB.addCommand("no scripts all", "ns/all", function(player)
+		SB.killScripts(player, "all");
+	end);
+
+	SB.addCommand("no locals all", "nl/all", function(player)
+		ClientToServerRemote:FireAllClients({
+			['Handler'] = "nl/all",
+			['Player'] = player,
+		});
+	end);
+
+	SB.addCommand("no locals", "nl", function(player)
+		ClientToServerRemote:FireClient(player, {
+			['Handler'] = "nl",
+		});
+	end);
+
+	SB.addCommand("walkspeed", "ws", function(player, command)
+		if player.Character and player.Character:FindFirstChild("Humanoid") then
+			player.Character.Humanoid.WalkSpeed = tonumber(command:sub(4));
+		end;
+	end);
+
+	SB.addCommand("base", "b", function()
+		if workspace:FindFirstChild("Base") then
+			workspace.Base:Destroy();
+		end;
+
+		BaseplateTemplate:Clone().Parent = workspace;
+	end);
+
+	SB.addCommand("no base", "nb", function()
+		if workspace:FindFirstChild("Base") then
+			workspace.Base:Destroy();
+		end;
+	end);
+
+	SB.addCommand("clear", "c", function()
+		for i = 1, #SB.Sandbox.CreatedInstances do
+			-- The instance might already be destroyed
+			-- so we have to pcall it
+			pcall(function()
+				SB.Sandbox.CreatedInstances[i]:Destroy();
+			end);
+		end;
+
+		-- Clear the table so that way it will
+		-- not cause a memory leak
+		SB.Sandbox.CreatedInstances = {};
+	end);
+
+	SB.addCommand("clear terrain", "cleart", function()
+		workspace:FindFirstChildOfClass("Terrain"):Clear();
+	end);
+
+	SB.addCommand("reset", "r", function(player)
+		player:LoadCharacter();
+	end);
+
+	SB.addCommand("stationary reset", "sr", function(player)
+		local cframe = player.Character and
+						player.Character:FindFirstChild("HumanoidRootPart") and
+						player.Character.HumanoidRootPart.CFrame or BaseplateTemplate.CFrame + Vector3.new(0, 5, 0);
+		player:LoadCharacter();
+		player.Character:WaitForChild("HumanoidRootPart").CFrame = cframe;
+	end);
+
+	local function joinHandler(player)
+		-- Create the Console
+		local guiClone = ConsoleGui:Clone();
+		guiClone.Parent = player.PlayerGui;
+
+		-- Create the client handler
+		local clone = ClientHandler:Clone();
+		clone.Parent = player.PlayerGui;
+		clone.Disabled = false;
+
+		-- Protect the objects
+		SB.Sandbox.addProtectedObject(clone);
+		SB.Sandbox.addProtectedObject(guiClone);
+
+		player.Chatted:Connect(function(message)
+			SB.handleCommand(player, message);
+		end);
+	end;
+
+	local function leaveHandler(player)
+		SB.killScripts(player);
+	end;
+
+	for _,plr in pairs(Players:GetPlayers()) do
+		joinHandler(plr);
+	end;
+
+	Players.PlayerAdded:Connect(joinHandler);
+	Players.PlayerRemoving:Connect(leaveHandler);
+
+	ScriptContext.Error:Connect(function(message, trace, scriptInstance)
+		local config = indexedScripts[scriptInstance];
+		local trace = string.split(trace, "\n");
+		table.remove(trace, #trace); -- Removes the last trailing element that is nil
+
+		if config then
+			ClientToServerRemote:FireClient(config.Owner, {
+				['Handler'] = "Output",
+				['Type'] = "error",
+				['Message'] = message
+			});
+
+			for i = 1, #trace do
+				if trace[i] ~= nil and (trace[i]:match(scriptInstance:GetFullName()) or
+										trace[i]:match("Workspace.Script") or
+										trace[i]:match("MainModule.Essentials.Sandbox")) then
+					table.remove(trace, i);
+				end;
+			end;
+
+			ClientToServerRemote:FireClient(config.Owner, {
+				['Handler'] = "Output",
+				['Type'] = "error",
+				['Message'] = trace
+			});
+
+			indexedScripts[scriptInstance] = nil;
+			scriptInstance:Destroy();
+		end;
+	end);
+end;
 
 return function(settings)
 	assert(typeof(settings) == "table", "Expected table when instantiating script builder.");
@@ -493,6 +533,9 @@ return function(settings)
 		["jobId"] = game.JobId,
 		["GUID"] = ServerGUID
 	}));
+
+	-- Initialize the script builder
+	init();
 
 	return SB;
 end;
