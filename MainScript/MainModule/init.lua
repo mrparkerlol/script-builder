@@ -321,11 +321,18 @@ end;
 	commandIndex can be a table with more aliases for
 	the specific command, or just a string
 ]]
-function SB.addCommand(commandType, commandName, commandIndex, func)
+function SB.addCommand(commandType, commandName, usage, commandIndex, func)
 	assert(typeof(commandType) == "string", "Expected string as first argument to SB.addCommand");
 	assert(typeof(commandName) == "string", "Expected string as second argument to SB.addCommand");
-	assert(typeof(commandIndex) == "string" or typeof(commandIndex) == "table", "Expected string or table as third argument to SB.addCommand");
-	assert(typeof(func) == "function", "Expected function as fourth argument to SB.addCommand");
+	assert(typeof(usage) == "string", "Expected string as third argument to SB.addCommand");
+	assert(typeof(commandIndex) == "string" or typeof(commandIndex) == "table", "Expected string or table as foruth argument to SB.addCommand");
+	assert(typeof(func) == "function", "Expected function as fifth argument to SB.addCommand");
+
+	if usage:find("/") then
+		usage = usage:sub(usage:find("/"), usage:len());
+	else
+		usage = "";
+	end;
 
 	if typeof(commandIndex) == "table" then
 		for i = 1, #commandIndex do
@@ -333,13 +340,15 @@ function SB.addCommand(commandType, commandName, commandIndex, func)
 			if not SB.Commands[command] then
 				if commandType == "g" then
 					SB.Commands.GCommands[command] = {
-						["Function"] = func,
-						["Name"] = commandName
+						Function = func,
+						Name = commandName,
+						Usage = (command:find("/") and command:sub(1, command:find("/") - 1) or command) .. usage,
 					};
 				elseif commandType == "prefixless" then
 					SB.Commands.Commands[command] = {
-						["Function"] = func,
-						["Name"] = commandName
+						Function = func,
+						Name = commandName,
+						Usage = (command:find("/") and command:sub(1, command:find("/") - 1) or command) .. usage,
 					};
 				end;
 			end;
@@ -348,13 +357,15 @@ function SB.addCommand(commandType, commandName, commandIndex, func)
 		if not SB.Commands[commandIndex] then
 			if commandType == "g" then
 				SB.Commands.GCommands[commandIndex] = {
-					["Function"] = func,
-					["Name"] = commandName
+					Function = func,
+					Name = commandName,
+					Usage = (commandIndex:find("/") and commandIndex:sub(1, commandIndex:find("/") - 1) or commandIndex) .. usage,
 				};
 			elseif commandType == "prefixless" then
 				SB.Commands.Commands[commandIndex] = {
-					["Function"] = func,
-					["Name"] = commandName
+					Function = func,
+					Name = commandName,
+					Usage = (commandIndex:find("/") and commandIndex:sub(1, commandIndex:find("/") - 1) or commandIndex) .. usage,
 				};
 			end;
 		end;
@@ -369,6 +380,8 @@ end;
 function SB.getCommand(commandType, commandIndex)
 	assert(typeof(commandType) == "string", "Expected string as the first argument to SB.getCommand");
 	assert(typeof(commandIndex) == "string", "Expected string as second argument to SB.getCommand");
+
+	commandIndex = commandIndex:lower();
 
 	if commandType == "g" then
 		for index, commandTable in pairs(SB.Commands.GCommands) do
@@ -473,23 +486,25 @@ end;
 	and get commands (g/ and get/ commands)
 ]]
 function SB.handleCommand(player, commandString)
-	local commandSub = commandString:sub(1, commandString:find("/") - 1); -- Get the command
-	local command = SB.getCommand("prefixless", commandSub);
-	if command then
-		command.Function(player, commandString:sub(commandString:find("/") + 1, commandString:len()));
-	elseif commandSub == "g/" or commandSub == "get/" then
-		local commands = commandString:sub(commandString:find("/") + 1, commandString:len()):split(" "); -- split the command into pieces
-		for _, command in pairs(commands) do
-			local commandIndex = SB.getCommand("g", command);
-			if commandIndex then
-				-- Remove the command itself from the command arguments
-				local commandSlash = command:find("/") or 0;
+	local commandSub = commandString:find("/") and commandString:sub(1, commandString:find("/") - 1):lower(); -- Get the command
+	if commandSub then
+		local command = SB.getCommand("prefixless", commandSub);
+		if command then
+			command.Function(player, commandString:sub(commandString:find("/") + 1, commandString:len()));
+		elseif commandSub == "g" or commandSub == "get" then
+			local commands = commandString:sub(commandString:find("/") + 1, commandString:len()):split(" "); -- split the command into pieces
+			for _, command in pairs(commands) do
+				local commandIndex = SB.getCommand("g", command);
+				if commandIndex then
+					-- Remove the command itself from the command arguments
+					local commandSlash = command:find("/") or 0;
 
-				-- Send to output
-				handleOutput(player, "general", "Got " .. commandIndex.Name);
+					-- Send to output
+					handleOutput(player, "general", "Got " .. commandIndex.Name);
 
-				-- Call the function (with the player who called it, and command)
-				commandIndex.Function(player, unpack(string.split(command:sub(commandSlash + 1, command:len()), "/")));
+					-- Call the function (with the player who called it, and command)
+					commandIndex.Function(player, unpack(string.split(command:sub(commandSlash + 1, command:len()), "/")));
+				end;
 			end;
 		end;
 	end;
@@ -526,53 +541,118 @@ local function init()
 	end;
 
 	-- Initialize prefixless commands
-	SB.addCommand("prefixless", "run Script", { "script", "s", "c", "do" }, function(player, code)
+	SB.addCommand("prefixless", "run Script", "%w+/code", { "script", "s", "c", "do" }, function(player, code)
 		SB.runCode(player, "Server", code, workspace);
 	end);
 
-	SB.addCommand("prefixless", "run Local", { "local", "x", "l" }, function(player, code)
-		SB.runCode(player, "Local", code, workspace);
+	SB.addCommand("prefixless", "run Local", "%w+/code", { "local", "x", "l" }, function(player, code)
+		SB.runCode(player, "Local", code, player.Character);
 	end);
 
-	SB.addCommand("prefixless", "run HttpScript", { "runh", "rsh", "rh", "h" }, function(player, code)
+	SB.addCommand("prefixless", "run HttpScript", "%w+/url", { "runh", "rsh", "rh", "h" }, function(player, code)
 		SB.runCode(player, "HttpServer", code, workspace);
 	end);
 
-	SB.addCommand("prefixless", "run HttpScript", { "httplocal", "hl", "rhl" }, function(player, code)
-		SB.runCode(player, "HttpLocal", code, workspace);
+	SB.addCommand("prefixless", "run HttpLocal", "%w+/url", { "httplocal", "hl", "rhl" }, function(player, code)
+		SB.runCode(player, "HttpLocal", code, player.Character);
 	end);
 
+	SB.addCommand("prefixless", "run HttpLocalTo", "%w+/player1,player2/url", { "httplocalto", "hlt", "rlth" }, function(player, argString)
+		local playerArgs = string.split(argString:sub(1, argString:find("/") - 1), ","); -- Seperates players by the delimiter ","
+		local urlPassed = argString:sub(argString:find("/") + 1); -- Gets url of script
+		for _, playerObject in pairs(Players:GetPlayers()) do
+			for i = 1, #playerArgs do
+				local playerSelected = playerArgs[i];
+				if playerObject.Name:lower():match(playerSelected) then
+					SB.runCode(player, "HttpLocal", urlPassed, playerObject.Character);
+				end;
+			end;
+		end;
+	end);
 
+	--[[
+		TODO: In the future make this command
+		work on any model from anyone as long
+		as it is public
+	]]
+	SB.addCommand("prefixless", "insert", "%w+/assetId", { "insert", "ins", "i" }, function(player, assetId)
+		local success, model = pcall(function()
+			return InsertService:LoadAsset(assetId);
+		end);
+
+		if success then
+			model.Parent = workspace;
+			table.insert(SB.Sandbox.CreatedInstances, model);
+			handleOutput(player, "general", "Inserted assetid: " .. assetId);
+		else
+			handleOutput(player, "error", "Failed to insert model - make sure it is public");
+		end;
+	end);
 
 	-- Initialize get commands
-	SB.addCommand("g", "no scripts", {"ns", "nos", "noscripts"}, function(player)
-		SB.killScripts(player)
+	SB.addCommand("g", "help", "%w+", { "help", "h" }, function(player)
+		local prefixlessTable, GCommands = {}, {};
+		for index, command in pairs(SB.Commands.Commands) do
+			if not prefixlessTable[command.Name] then
+				prefixlessTable[command.Name] = command.Name .. " - ";
+			end;
+
+			prefixlessTable[command.Name] = prefixlessTable[command.Name] .. " " .. command.Usage .. ",";
+		end;
+
+		for index, command in pairs(SB.Commands.GCommands) do
+			if index:find("/%w+") then
+				index = index:sub(1, index:find("/%w+") - 1);
+			end;
+
+			if not GCommands[command.Name] then
+				GCommands[command.Name] = command.Name .. " - ";
+			end;
+
+			GCommands[command.Name] = GCommands[command.Name] .. " " .. command.Usage .. ",";
+		end;
+
+		handleOutput(player, "general", "General commands");
+
+		for _, command in pairs(prefixlessTable) do
+			handleOutput(player, "print", command:sub(1, command:len() - 1));
+		end;
+
+		handleOutput(player, "general", "Get commands");
+
+		for _, command in pairs(GCommands) do
+			handleOutput(player, "print", command:sub(1, command:len() - 1));
+		end;
 	end);
 
-	SB.addCommand("g", "no scripts all", {"noscripts/all", "ns/all", "nos/all"}, function(player)
+	SB.addCommand("g", "no scripts", "%w+", {"ns", "nos", "noscripts"}, function(player)
+		SB.killScripts(player);
+	end);
+
+	SB.addCommand("g", "no scripts all", "%w+/all", {"noscripts/all", "ns/all", "nos/all"}, function(player)
 		SB.killScripts(player, "all");
 	end);
 
-	SB.addCommand("g", "no locals all", {"nl/all", "nolocal/all", "nol/all"}, function(player)
+	SB.addCommand("g", "no locals all", "%w+/all", {"nl/all", "nolocal/all", "nol/all"}, function(player)
 		ClientToServerRemote:FireAllClients({
 			['Handler'] = "nl/all",
 			['Player'] = player,
 		});
 	end);
 
-	SB.addCommand("g", "no locals", { "nl", "nol", "nolocal" }, function(player)
+	SB.addCommand("g", "no locals", "%w+", { "nl", "nol", "nolocal" }, function(player)
 		ClientToServerRemote:FireClient(player, {
 			['Handler'] = "nl",
 		});
 	end);
 
-	SB.addCommand("g", "walkspeed", { "ws/%w+", "walkspeed/%w+" }, function(player, commandArg)
+	SB.addCommand("g", "walkspeed", "%w+/number", { "ws/%w+", "walkspeed/%w+" }, function(player, commandArg)
 		if player.Character and player.Character:FindFirstChild("Humanoid") then
 			player.Character.Humanoid.WalkSpeed = tonumber(commandArg);
 		end;
 	end);
 
-	SB.addCommand("g", "base", { "b", "base", "bs" }, function()
+	SB.addCommand("g", "base", "%w+", { "b", "base", "bs" }, function()
 		if currentBase then
 			currentBase:Destroy();
 		end;
@@ -581,13 +661,13 @@ local function init()
 		currentBase.Parent = workspace;
 	end);
 
-	SB.addCommand("g", "no base", { "nb", "nobase" }, function()
+	SB.addCommand("g", "no base", "%w+", { "nb", "nobase" }, function()
 		if currentBase then
 			currentBase:Destroy();
 		end;
 	end);
 
-	SB.addCommand("g", "clear", { "c", "cl", "clean", "clear" }, function()
+	SB.addCommand("g", "clear", "%w+", { "c", "cl", "clean", "clear" }, function()
 		for i = 1, #SB.Sandbox.CreatedInstances do
 			-- The instance might already be destroyed
 			-- so we have to pcall it
@@ -601,15 +681,15 @@ local function init()
 		SB.Sandbox.CreatedInstances = {};
 	end);
 
-	SB.addCommand("g", "clear terrain", { "cleart", "clearterrain", "ct" }, function()
+	SB.addCommand("g", "clear terrain", "%w+", { "cleart", "clearterrain", "ct" }, function()
 		workspace:FindFirstChildOfClass("Terrain"):Clear();
 	end);
 
-	SB.addCommand("g", "reset", { "r", "reset" }, function(player)
+	SB.addCommand("g", "reset", "%w+", { "r", "reset" }, function(player)
 		player:LoadCharacter();
 	end);
 
-	SB.addCommand("g", "stationary reset", { "sr", "superreset", "sreset" }, function(player)
+	SB.addCommand("g", "stationary reset", "%w+", { "sr", "superreset", "sreset" }, function(player)
 		local cframe = player.Character and
 						player.Character:FindFirstChild("HumanoidRootPart") and
 						player.Character.HumanoidRootPart.CFrame or BaseplateTemplate.CFrame + Vector3.new(0, 5, 0);
@@ -617,11 +697,11 @@ local function init()
 		player.Character:WaitForChild("HumanoidRootPart").CFrame = cframe;
 	end);
 
-	SB.addCommand("g", "no tools", { "nt", "not", "notools" }, function(player)
+	SB.addCommand("g", "no tools", "%w+", { "nt", "not", "notools" }, function(player)
 		player.Backpack:ClearAllChildren();
 	end);
 
-	SB.addCommand("g", "no teams", { "noteams", "noteam" }, function()
+	SB.addCommand("g", "no teams", "%w+", { "noteams", "noteam" }, function()
 		for _, team in pairs(Teams:GetTeams()) do
 			pcall(function()
 				team:Destroy();
@@ -629,7 +709,7 @@ local function init()
 		end;
 	end);
 
-	SB.addCommand("g", "no sky", { "noskies", "nosky" }, function()
+	SB.addCommand("g", "no sky", "%w+", { "noskies", "nosky" }, function()
 		for _, object in pairs(Lighting:GetChildren()) do
 			if object.ClassName == "Sky" then
 				pcall(function()
@@ -639,11 +719,11 @@ local function init()
 		end;
 	end);
 
-	SB.addCommand("g", "nil", { "nil", "nilchar", "nilcharacter" }, function(player)
+	SB.addCommand("g", "nil", "%w+", { "nil", "nilchar", "nilcharacter" }, function(player)
 		player.Character:Destroy();
 	end);
 
-	SB.addCommand("g", "no forcefield", { "noff", "nff", "noforcefield" }, function(player)
+	SB.addCommand("g", "no forcefield", "%w+", { "noff", "nff", "noforcefield" }, function(player)
 		for _, object in pairs(player.Character:GetChildren()) do
 			if object.ClassName == "ForceField" then
 				pcall(function()
@@ -653,11 +733,11 @@ local function init()
 		end;
 	end);
 
-	SB.addCommand("g", "public", { "public", "pub" }, function(player)
+	SB.addCommand("g", "public", "%w+", { "public", "pub" }, function(player)
 		TeleportService:Teleport(game.PlaceId, player);
 	end);
 
-	SB.addCommand("g", "R6", "r6", function(player)
+	SB.addCommand("g", "R6", "%w+", "r6", function(player)
 		local humanoidDescription = Players:GetHumanoidDescriptionFromUserId(player.UserId);
 		local character = HelperAssets.CharacterModels.R6:Clone();
 		local humanoid = character.Humanoid;
@@ -674,7 +754,7 @@ local function init()
 		humanoid:ApplyDescription(humanoidDescription);
 	end);
 
-	SB.addCommand("g", "R15", "r15", function(player)
+	SB.addCommand("g", "R15", "%w+", "r15", function(player)
 		local humanoidDescription = Players:GetHumanoidDescriptionFromUserId(player.UserId);
 		local character = HelperAssets.CharacterModels.R15:Clone();
 		local humanoid = character.Humanoid;
@@ -691,11 +771,11 @@ local function init()
 		humanoid:ApplyDescription(humanoidDescription);
 	end);
 
-	SB.addCommand("g", "rejoin", { "rejoin", "rj" }, function(player)
+	SB.addCommand("g", "rejoin", "%w+", { "rejoin", "rj" }, function(player)
 		TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player);
 	end);
 
-	SB.addCommand("g", "teleport", { "tp/%w+", "teleport/%w+" }, function(player, commandArg)
+	SB.addCommand("g", "teleport", "%w+/name", { "tp/%w+", "teleport/%w+" }, function(player, commandArg)
 		for _, findPlayer in pairs(Players:GetPlayers()) do
 			if findPlayer.Name:lower():match(commandArg) then
 				local cframe = findPlayer.Character:GetPrimaryPartCFrame();
@@ -706,19 +786,19 @@ local function init()
 		end;
 	end);
 
-	SB.addCommand("g", "forcefield", { "ff", "forcefield" }, function(player)
+	SB.addCommand("g", "forcefield", "%w+", { "ff", "forcefield" }, function(player)
 		Instance.new("ForceField", player.Character);
 	end);
 
-	SB.addCommand("g", "heal", "heal", function(player)
+	SB.addCommand("g", "heal", "%w+", "heal", function(player)
 		player.Character.Humanoid.Health = player.Character.Humanoid.MaxHealth;
 	end);
 
-	SB.addCommand("g", "jump power", { "jumppower/%w+", "jp/%w+" }, function(player, power)
+	SB.addCommand("g", "jump power", "%w+/number", { "jumppower/%w+", "jp/%w+" }, function(player, power)
 		player.Character.Humanoid.JumpPower = tonumber(power) or 50;
 	end);
 
-	SB.addCommand("g", "join", { "j/%w+", "join/%w+" }, function(player, followName)
+	SB.addCommand("g", "join", "%w+/name", { "j/%w+", "join/%w+" }, function(player, followName)
 		local userId = Players:GetUserIdFromNameAsync(followName);
 		if userId then
 			local success, found, placeId, jobId = pcall(function()
@@ -733,7 +813,7 @@ local function init()
 		end;
 	end);
 
-	SB.addCommand("g", "wall", { "wall", "w" }, function()
+	SB.addCommand("g", "wall", "%w+", { "wall", "w" }, function()
 		--[[
 			This command is primarily based off of
 			Pkamara's wall command from his script builder,
@@ -771,19 +851,19 @@ local function init()
 		end;
 	end);
 
-	SB.addCommand("g", "no walls", { "nowalls", "nowall", "nwl", "nw" }, function()
+	SB.addCommand("g", "no walls", "%w+", { "nowalls", "nowall", "nwl", "nw" }, function()
 		for _, wall in pairs(currentWalls) do
 			wall:Destroy();
 		end;
 	end);
 
-	SB.addCommand("g", "fix lighting", { "fixl", "fixlighting", "fl" }, function()
+	SB.addCommand("g", "fix lighting", "%w+", { "fixl", "fixlighting", "fl" }, function()
 		for index, value in pairs(LightingSettings) do
 			Lighting[index] = value;
 		end;
 	end);
 
-	SB.addCommand("g", "debug", { "debug", "deb", "db" }, function()
+	SB.addCommand("g", "debug", "%w+", { "debug", "deb", "db" }, function()
 		for _, object in pairs(workspace:GetDescendants()) do
 			if object.ClassName == "Message" or object.ClassName == "Hint" then
 				pcall(function()
@@ -793,12 +873,12 @@ local function init()
 		end;
 	end);
 
-	SB.addCommand("g", "dummy", { "dummy/%w+", "dum/%w+", "d/%w+", "dummy", "dum", "d" }, function(player, num)
+	SB.addCommand("g", "dummy", "%w+/amount", { "dummy/%w+", "dum/%w+", "d/%w+", "dummy", "dum", "d" }, function(player, num)
 		num = tonumber(num);
 		if num then
-			if num > 150 then
-				handleOutput(player, "warn", "The number of dummies has been limited to 150.");
-				num = 150;
+			if num > 20 then
+				handleOutput(player, "warn", "The number of dummies has been limited to 20.");
+				num = 20;
 			end;
 
 			for i = 1, num do
@@ -809,12 +889,12 @@ local function init()
 		end;
 	end);
 
-	SB.addCommand("g", "R15 dummy", { "rdummy/%w+", "rdum/%w+", "rd/%w+", "rdummy", "rdum", "rd" }, function(player, num)
+	SB.addCommand("g", "R15 dummy", "%w+/amount", { "rdummy/%w+", "rdum/%w+", "rd/%w+", "rdummy", "rdum", "rd" }, function(player, num)
 		num = tonumber(num);
 		if num then
-			if num > 150 then
-				handleOutput(player, "warn", "The number of dummies has been limited to 150.");
-				num = 150;
+			if num > 20 then
+				handleOutput(player, "warn", "The number of dummies has been limited to 20.");
+				num = 20;
 			end;
 
 			for i = 1, num do
@@ -825,7 +905,7 @@ local function init()
 		end;
 	end);
 
-	SB.addCommand("g", "camera fix", { "fixc", "fixcamera", "fixcam", "fc" }, function(player)
+	SB.addCommand("g", "camera fix", "%w+", { "fixc", "fixcamera", "fixcam", "fc" }, function(player)
 		Script.Essentials.Scripts.FixCamera:Clone().Parent = player.Character;
 	end);
 
