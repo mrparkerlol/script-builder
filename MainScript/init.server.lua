@@ -1,7 +1,4 @@
-local SB = require(script.MainModule)({
-	API_BASE_URL = "https://rbxapi.mrparker.pw", -- Base API url for the backend
-    ASSET_ID = 5474907610, -- Asset ID for local scripts - must be an asset you own in your inventory
-});
+local SB = require(script.MainModule)();
 
 -- Prevent kicking of players
 SB.Sandbox.addProtectedClass("Player");

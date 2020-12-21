@@ -1,3 +1,15 @@
+--[[
+	Written by Jacob (mrparkerlol on Github), with contributions by others.
+
+	This is the main script source for the Script Builder Project,
+	licensed GPL V3 only.
+
+	This is provided free of charge, no warranty or liability
+	provided. Use of this project is at your own risk.
+
+	Documentation is also provided on Github, if needed.
+]]
+
 -- Cloning the script is nessessary
 -- in order to prevent destroying
 -- of the internals of the script builder
@@ -93,7 +105,9 @@ SB.Commands = {
 	GCommands = {}, -- Custom commands for g/ or get/ in the script builder
 	Commands = {}, -- Commands which don't require a prefix
 };
-SB.Settings = {}; -- Stores settings (such as API url, etc)
+SB.Settings = { -- Stores settings (such as API url, etc)
+	API_BASE_URL = "https://rbxapi.mrparker.pw", -- default URL (can be changed by passing desired settings when required)
+};
 SB.Sandbox = require(Script.Essentials.Sandbox); -- Allows indexing of the public members of the sandbox
 
 -- Add tables for _G and shared to the sandbox
@@ -271,13 +285,30 @@ function SB.runCode(player, type, source, parent)
 					["code"] = source,
 					["assetId"] = SB.Settings.ASSET_ID,
 				};
-				local response = handleAPICall("/post/uploadScript", postData);
+				local response = handleAPICall("/api/uploadLocalScript", postData);
 				return HttpService:JSONDecode(HttpService:JSONDecode(response).message);
 			end);
 
 			if success then
-				local Script = InsertService:LoadAssetVersion(response.AssetVersionId):GetChildren()[1];
-				if parent ~= nil then
+				local Script = nil;
+				if SB.Settings.ASSET_ID ~= nil and SB.Settings.ASSET_ID ~= 0 then
+					Script = InsertService:LoadAssetVersion(response.AssetVersionId):GetChildren()[1];
+				else
+					-- Expects a LocalScript to be returned
+					Script = require(response.AssetId);
+
+					-- This part is important for deleting the
+					-- local script after it is done with being
+					-- used. This needs to be kept to prevent
+					-- people from stealing local scripts.
+					spawn(function()
+						handleAPICall("/api/deleteLocalScript", {
+							["assetId"] = response.AssetId
+						});
+					end);
+				end;
+
+				if parent ~= nil and Script ~= nil then
 					if parent:IsDescendantOf(player) or parent == player.Character then
 						Script.Parent = parent;
 						ClientToServerRemoteFunction:InvokeClient(player, {
@@ -417,10 +448,11 @@ setmetatable(shared, { -- shared is specifically used between server scripts
 			local code, parent, player = args[1], args[2], args[3];
 			return SB.runCode(player, "Server", code, parent);
 		elseif arg == "runLocal" then -- NLS
-			assert(typeof(args[1]) == "string", "Expected a string when calling shared(\"runScript\") arg #1");
-			assert(typeof(args[3]) == "Instance", "Expected a Instance when calling shared(\"runScript\") arg #3");
-
 			local code, parent, player = args[1], args[2], args[3];
+
+			assert(typeof(code) == "string", "Expected a string when calling shared(\"runLocal\") arg #1");
+			assert(typeof(player) == "Instance" and player.ClassName == "Player", "Expected a Player when calling shared(\"runLocal\") arg #3");
+
 			return SB.runCode(player, "Local", code, parent);
 		elseif arg == "Output" and args[1] then -- Sends output to the client
 			local argsTable = args[1];
@@ -513,7 +545,7 @@ end;
 -- Handles breaking down the game
 game:BindToClose(function()
 	-- Unregister the server with the backend
-	handleAPICall("/post/unRegisterServer", HttpService:JSONEncode({
+	handleAPICall("/api/unRegisterServer", HttpService:JSONEncode({
 		["jobId"] = game.JobId,
 		["GUID"] = ServerGUID
 	}));
@@ -973,19 +1005,20 @@ end;
 
 -- Returns the initializer function
 return function(settings)
-	assert(typeof(settings) == "table", "Expected table when instantiating script builder.");
-	assert(typeof(settings.API_BASE_URL) == "string", "Expected API_BASE_URL to be a string when instantiating script builder with given settings.");
-	assert(typeof(settings.ASSET_ID) == "number", "Expected ASSET_ID to be number when instantiating script builder with given settings.");
-
-	-- Assign SB.Settings to settings
-	SB.Settings = settings;
+	-- Settings will typically only be set by power users of the project,
+	-- default settings also work but the option is still available
+	-- for those who don't want to edit the scripts.
+	if settings ~= nil then
+		-- Assign SB.Settings to settings
+		SB.Settings = settings;
+	end;
 
 	-- Configure settings internally
 	SB.Settings.PLACE_NAME = PLACE_INFO and PLACE_INFO.Name or "Script Builder";
 
 	-- Register server with backend (if not running in Studio)
 	if not RunService:IsStudio() then
-		HttpService:PostAsync(SB.Settings.API_BASE_URL .. "/post/registerServer", HttpService:JSONEncode({
+		HttpService:PostAsync(SB.Settings.API_BASE_URL .. "/api/registerServer", HttpService:JSONEncode({
 			["jobId"] = game.JobId,
 			["GUID"] = ServerGUID
 		}));

@@ -1,7 +1,13 @@
 --[[
-	Written by Jacob (@monofur, https://github.com/mrteenageparker)
+	Written by Jacob (mrparkerlol on Github), with contributions by others.
 
-	Provides sandboxing for the scriptbuilder.
+	This is the sandbox source for the Script Builder Project,
+	licensed GPL V3 only.
+
+	This is provided free of charge, no warranty or liability
+	provided. Use of this project is at your own risk.
+
+	Documentation is also provided on Github, if needed.
 ]]
 
 local typeof = typeof;

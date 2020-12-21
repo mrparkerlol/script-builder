@@ -1,3 +1,15 @@
+--[[
+	Written by Jacob (mrparkerlol on Github), with contributions by others.
+
+	This is the client manager source for the Script Builder Project,
+	licensed GPL V3 only.
+
+	This is provided free of charge, no warranty or liability
+	provided. Use of this project is at your own risk.
+
+	Documentation is also provided on Github, if needed.
+]]
+
 wait();
 script.Parent = nil;
 script:Destroy();
