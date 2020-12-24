@@ -23,6 +23,18 @@ script.Parent = nil;
 script:Destroy();
 script = nil;
 
+-- This part of the code allows
+-- for the use case for when shared
+-- is already defined, and if it is
+-- it will use a nested table instead.
+local shared = shared;
+if getmetatable(shared) ~= nil and shared.SB == nil then
+	shared.SB = {};
+	shared = shared.SB;
+elseif (getmetatable(shared) ~= nil and pcall(shared, "IsSB")) or shared.SB ~= nil then
+	return error("Duplicate script builders detected! Make sure you aren't attempting to run duplicate instances!");
+end;
+
 local typeof = typeof;
 local game = game;
 
@@ -473,6 +485,8 @@ setmetatable(shared, { -- shared is specifically used between server scripts
 			if indexedScripts[arg] then
 				return indexedScripts[arg];
 			end;
+		elseif arg == "IsSB" then
+			return true;
 		end;
 	end),
 
@@ -624,7 +638,7 @@ local function init()
 	-- Initialize get commands
 	SB.addCommand("g", "help", "%w+", { "help", "h" }, function(player)
 		local prefixlessTable, GCommands = {}, {};
-		for index, command in pairs(SB.Commands.Commands) do
+		for _, command in pairs(SB.Commands.Commands) do
 			if not prefixlessTable[command.Name] then
 				prefixlessTable[command.Name] = command.Name .. " - ";
 			end;
@@ -853,7 +867,7 @@ local function init()
 		]]
 
 		if #currentWalls == 4 then
-			for index, wall in pairs(currentWalls) do
+			for _, wall in pairs(currentWalls) do
 				wall:Destroy();
 			end;
 
@@ -973,28 +987,27 @@ local function init()
 
 	ScriptContext.Error:Connect(function(message, trace, scriptInstance)
 		local config = indexedScripts[scriptInstance];
-		local trace = string.split(trace, "\n");
-		table.remove(trace, #trace); -- Removes the last trailing element that is nil
-
 		if config then
+			local trace = string.split(trace, "\n"); -- split values from the trace of the error
+			local stack = {}; -- actual stack trace we will send to client
+			table.remove(trace, #trace); -- Removes the last trailing element that is nil
+
 			ClientToServerRemote:FireClient(config.Owner, {
 				['Handler'] = "Output",
 				['Type'] = "error",
 				['Message'] = message
 			});
 
-			for i = 1, #trace do
-				if trace[i] ~= nil and (trace[i]:match(scriptInstance:GetFullName()) or
-										trace[i]:match("Workspace.Script") or
-										trace[i]:match("MainModule.Essentials.Sandbox")) then
-					table.remove(trace, i);
+			for _, value in pairs(trace) do
+				if value ~= nil and not (value:match(scriptInstance:GetFullName()) or value:match("Workspace.Script") or value:match("MainModule.Essentials.Sandbox")) then
+					table.insert(stack, value);
 				end;
 			end;
 
 			ClientToServerRemote:FireClient(config.Owner, {
 				['Handler'] = "Output",
 				['Type'] = "error",
-				['Message'] = trace
+				['Message'] = stack
 			});
 
 			indexedScripts[scriptInstance] = nil;
@@ -1018,10 +1031,18 @@ return function(settings)
 
 	-- Register server with backend (if not running in Studio)
 	if not RunService:IsStudio() then
-		HttpService:PostAsync(SB.Settings.API_BASE_URL .. "/api/registerServer", HttpService:JSONEncode({
-			["jobId"] = game.JobId,
-			["GUID"] = ServerGUID
-		}));
+		local req = HttpService:RequestAsync({
+			Url = SB.Settings.API_BASE_URL .. "/api/registerServer",
+			Method = "POST",
+			Body = HttpService:JSONEncode({
+				["jobId"] = game.JobId,
+				["GUID"] = ServerGUID
+			}),
+		});
+
+		if req.StatusCode ~= 200 then
+			print(req.Body, req.StatusCode);
+		end;
 	end;
 
 	-- Initialize the script builder

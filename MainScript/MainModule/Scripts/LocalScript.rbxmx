@@ -2,37 +2,45 @@
 	<Meta name="ExplicitAutoJoints">true</Meta>
 	<External>null</External>
 	<External>nil</External>
-	<Item class="ModuleScript" referent="RBXECFDD826BA224DF694FE067127DED8BD">
+	<Item class="ModuleScript" referent="RBX921E7678168A4A57908A5F8D0005AE7B">
 		<Properties>
 			<BinaryString name="AttributesSerialize"></BinaryString>
 			<Content name="LinkedSource"><null></null></Content>
-			<string name="Name">MainModule</string>
-			<string name="ScriptGuid">{C0707B77-F0B6-4245-A2E9-42536217DC64}</string>
-			<ProtectedString name="Source"><![CDATA[return script:WaitForChild("LocalScript");]]></ProtectedString>
+			<string name="Name">LocalScript</string>
+			<string name="ScriptGuid">{F01216B8-39BD-4ED9-8AB4-B71BD4DB09B6}</string>
+			<ProtectedString name="Source">return script:WaitForChild(&quot;LocalScript&quot;);</ProtectedString>
 			<int64 name="SourceAssetId">-1</int64>
 			<BinaryString name="Tags"></BinaryString>
 		</Properties>
-		<Item class="LocalScript" referent="RBXE6FB12E962204135A7F89C8A51BB6CBB">
+		<Item class="LocalScript" referent="RBX5D75A82EE66045809541E1A5ED75BFD3">
 			<Properties>
 				<BinaryString name="AttributesSerialize"></BinaryString>
-				<bool name="Disabled">false</bool>
+				<bool name="Disabled">true</bool>
 				<Content name="LinkedSource"><null></null></Content>
 				<string name="Name">LocalScript</string>
-				<string name="ScriptGuid">{5D00ECF7-779C-40DD-AA38-803C92ADDF18}</string>
+				<string name="ScriptGuid">{62199F6D-ACC4-4B5C-A0FB-7151C81EB612}</string>
 				<ProtectedString name="Source"><![CDATA[local code = nil;
 (function()
 	code = require(script:WaitForChild("LSource"));
 	script:ClearAllChildren();
 end)();
 
+-- Allows for the use case
+-- where shared is already defined, and
+-- can't be overwritten.
+local shared = shared;
+if getmetatable(shared) ~= nil and shared.SB ~= nil then
+	shared = shared.SB;
+end;
+
 if code then
 	local config = shared(script, getfenv());
 	local environment = config and config.environment;
-	
+
 	setfenv(0, environment);
 	setfenv(1, environment);
 	setfenv(code, environment);
-	
+
 	spawn(function()
 		shared("Output", {
 			Type = "general",
@@ -51,13 +59,13 @@ end;]]></ProtectedString>
 				<int64 name="SourceAssetId">-1</int64>
 				<BinaryString name="Tags"></BinaryString>
 			</Properties>
-			<Item class="ModuleScript" referent="RBX5AA2C017B6A14BF483E04E0E5124BF1C">
+			<Item class="ModuleScript" referent="RBXCD3EFA7D195249FA99CFB6E3388AFFCE">
 				<Properties>
 					<BinaryString name="AttributesSerialize"></BinaryString>
 					<Content name="LinkedSource"><null></null></Content>
 					<string name="Name">LSource</string>
-					<string name="ScriptGuid">{FEFFE1A7-764B-437A-9D21-81CCB46550A5}</string>
-					<ProtectedString name="Source"><![CDATA[return function() end;]]></ProtectedString>
+					<string name="ScriptGuid"></string>
+					<ProtectedString name="Source">return function() end;</ProtectedString>
 					<int64 name="SourceAssetId">-1</int64>
 					<BinaryString name="Tags"></BinaryString>
 				</Properties>

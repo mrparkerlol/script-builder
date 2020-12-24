@@ -15,6 +15,17 @@ script.Parent = nil;
 script:Destroy();
 script = nil;
 
+-- This allows the client manager
+-- to run when shared is already
+-- defined, and will not overwrite
+-- shared itself, but make a nested
+-- table instead
+local shared = shared;
+if getmetatable(shared) ~= nil then
+	shared.SB = {};
+	shared = shared.SB;
+end;
+
 print("Initializing client manager");
 
 local Players = game:GetService("Players");

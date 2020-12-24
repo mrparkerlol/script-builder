@@ -24,6 +24,13 @@ local shared = shared;
 local setfenv = setfenv;
 local typeof = typeof;
 
+-- Metatable for "shared" already is locked, however
+-- the main script is using .SB for the SB, use
+-- that instead.
+if getmetatable(shared) ~= nil and shared.SB then
+	shared = shared.SB;
+end;
+
 -- Get the owner of the script and source.
 local config = shared(script);
 

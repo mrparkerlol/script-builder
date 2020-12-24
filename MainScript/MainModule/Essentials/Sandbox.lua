@@ -68,6 +68,10 @@ function Sandbox.new(scriptObject, environment)
 			elseif Sandbox.GlobalOverrides[index] then
 				return Sandbox.wrap(sandboxInstance, Sandbox.GlobalOverrides[index]);
 			elseif environmentItem then
+				if typeof(environmentItem) == "function" then
+					return Sandbox.wrap(sandboxInstance, environmentItem);
+				end;
+
 				return environmentItem;
 			else
 				return nil;
@@ -124,6 +128,8 @@ function Sandbox.wrap(sandboxInstance, ...)
 				selected = Sandbox.wrapInstance(sandboxInstance, selected);
 			elseif type == "table" then
 				selected = Sandbox.wrapTable(sandboxInstance, selected);
+			elseif type == "function" then
+				selected = Sandbox.wrapFunction(sandboxInstance, selected);
 			end;
 		end;
 
@@ -239,6 +245,27 @@ function Sandbox.wrapTable(sandboxInstance, tbl)
 end;
 
 --[[
+	Sandbox.wrapFunction()
+	Wraps functions (purely just unwraps for code that might need unwrapped values)
+]]
+function Sandbox.wrapFunction(sandboxInstance, originalFn)
+	local fn = function(...)
+		local args = {Sandbox.getReal(sandboxInstance, unpack({...}))};
+		local success, message = pcall(originalFn, unpack(args));
+		if success then
+			return message;
+		else
+			return error(message, 2);
+		end;
+	end;
+
+	sandboxInstance.WrappedCache[originalFn] = fn;
+	sandboxInstance.RealCache[fn] = originalFn;
+
+	return fn;
+end;
+
+--[[
 	Sandbox.wrapMethod()
 	Wraps metamethods
 ]]
@@ -249,23 +276,24 @@ function Sandbox.wrapMethod(sandboxInstance, index, methodFunction)
 		local realArgs = {Sandbox.getReal(sandboxInstance, ...)};
 		local destructive = Sandbox.DestructiveMethods[index:lower()] or nil;
 		if destructive then
-			for key, value in pairs(realArgs) do
-				local valueClass = typeof(value) == "Instance" and value.ClassName;
-				local keyClass = typeof(key) == "Instance" and key.ClassName;
+			if unpack(realArgs) ~= nil then
+				for key, value in pairs(realArgs) do
+					local valueClass = typeof(value) == "Instance" and value.ClassName;
+					local keyClass = typeof(key) == "Instance" and key.ClassName;
 
-				if valueClass and Sandbox.ProtectedClasses[valueClass]
-				or keyClass and Sandbox.ProtectedClasses[keyClass] then
-					return error(valueClass or keyClass .. " is protected.", 2);
+					if valueClass and Sandbox.ProtectedClasses[valueClass]
+					or keyClass and Sandbox.ProtectedClasses[keyClass] then
+						return error(valueClass or keyClass .. " is protected.", 0);
+					end;
 				end;
 			end;
 
 			if Sandbox.ProtectedClasses[realSelf.ClassName] then
-				return error(realSelf.ClassName .. " is protected.", 2);
+				return error(realSelf.ClassName .. " is protected.", 0);
 			end;
 		end;
 
-		local ret = {Sandbox.wrap(sandboxInstance, methodFunction(realSelf, unpack(realArgs)))};
-		return unpack(ret);
+		return Sandbox.wrap(sandboxInstance, methodFunction(realSelf, unpack(realArgs)));
 	end, sandboxMt);
 
 	sandboxInstance.RealCache[methodFunction] = methodWrapped;

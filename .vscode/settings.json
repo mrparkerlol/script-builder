@@ -1,0 +1,28 @@
+{
+    "Lua.diagnostics.globals": [
+        "workspace",
+        "CFrame",
+        "Vector3",
+        "Instance",
+        "wait",
+        "script",
+        "shared",
+        "typeof",
+        "game",
+        "UDim2",
+        "Enum",
+        "Color3",
+        "TweenInfo",
+        "Vector2",
+        "newproxy",
+        "delay",
+        "unpack",
+        "BrickColor",
+        "warn",
+        "spawn"
+    ],
+    "Lua.diagnostics.disable": [
+        "undefined-field"
+    ],
+    "Lua.runtime.version": "Lua 5.1"
+}
