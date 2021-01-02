@@ -250,12 +250,14 @@ end;
 ]]
 function Sandbox.wrapFunction(sandboxInstance, originalFn)
 	local fn = function(...)
-		local args = {Sandbox.getReal(sandboxInstance, unpack({...}))};
-		local success, message = pcall(originalFn, unpack(args));
+		local result = {pcall(originalFn, Sandbox.getReal(sandboxInstance, ...))};
+		local success = result[1];
+		table.remove(result, 1); -- sets the boolean the pcall returns to nil
+
 		if success then
-			return message;
+			return unpack(result);
 		else
-			return error(message, 2);
+			return error(unpack(result), 2);
 		end;
 	end;
 
